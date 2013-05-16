@@ -1117,6 +1117,16 @@ void WorldView::UpdateCommsOptions()
 	}
 	if ((Pi::player->GetFlightState() == Ship::DOCKING) && (Pi::player->m_equipment.Get(Equip::SLOT_AUTOPILOT) == Equip::AUTOPILOT)) {
 		m_commsOptions->Add(new Gui::Label("#ff0"+std::string(Lang::AUTOPILOT_OFFLINE)), 16, float(ypos1));
+		ypos1 += 32;
+	}
+	// alert info, upper-left corner of screen
+	if (Pi::player->GetAlertState() == Ship::ALERT_SHIP_NEARBY) {
+		m_commsOptions->Add(new Gui::Label("#f00"+std::string(Lang::SHIP_DETECTED_NEARBY)), 16, float(ypos1));
+		ypos1 += 32;
+	}
+	if (Pi::player->GetAlertState() == Ship::ALERT_SHIP_FIRING) {
+		m_commsOptions->Add(new Gui::Label("#f00"+std::string(Lang::LASER_FIRE_DETECTED)), 16, float(ypos1));
+		ypos1 += 32;
 	}
 }
 
