@@ -1109,8 +1109,13 @@ void WorldView::UpdateCommsOptions()
 		button->onClick.connect(sigc::bind(sigc::ptr_fun(autopilot_flyto), comtarget));
 		ypos += 32;
 	}
-	// docking info, upper-left corner of screen
 	int ypos1 = -180;
+	// autopilot info, upper-left corner of screen
+	if (Pi::player->GetPlayerController()->GetFlightControlState() == CONTROL_AUTOPILOT) {
+		m_commsOptions->Add(new Gui::Label("#ff0"+std::string(Lang::SHIP_UNDER_AUTOPILOT_CONTROLL)), 16, float(ypos1));
+		ypos1 += 32;
+	}
+	// docking info, upper-left corner of screen
 	if (Pi::player->GetFlightState() == Ship::DOCKING) {
 		m_commsOptions->Add(new Gui::Label("#ff0"+std::string(Lang::SHIP_UNDER_STATION_CONTROLL)), 16, float(ypos1));
 		ypos1 += 32;

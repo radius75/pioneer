@@ -1198,6 +1198,8 @@ SET_HYPERSPACE_TARGET_TO_FOLLOW_THIS_DEPARTURE
     Hyperspace cloud analyzer: Set hyperspace target to follow this departure
 SHIP_UNDER_STATION_CONTROLL
     Ship is under station control...
+SHIP_UNDER_AUTOPILOT_CONTROLL
+    Ship is under autopilot control...
 AUTOPILOT_OFFLINE
     Autopilot is offline.
 FAILED
