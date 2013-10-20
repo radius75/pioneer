@@ -27,6 +27,7 @@ void Error(const char *format, ...) __attribute((format(printf,1,2))) __attribut
 
 std::string string_join(std::vector<std::string> &v, std::string sep);
 std::string format_date(double time);
+std::string format_date_for_save(double time);
 std::string format_date_only(double time);
 std::string format_distance(double dist, int precision = 2);
 std::string format_money(Sint64 money);

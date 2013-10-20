@@ -9,6 +9,7 @@ local TabGroup = import("ui/TabGroup")
 local SmallLabeledButton = import("ui/SmallLabeledButton")
 local KeyBindingCapture = import("UI.Game.KeyBindingCapture")
 local AxisBindingCapture = import("UI.Game.AxisBindingCapture")
+local Format = import("Format")
 
 local ui = Engine.ui
 local t = Translate:GetTranslator()
@@ -283,7 +284,7 @@ ui.templates.SettingsInGame = function ()
 						allowNewFile = true,
 						selectLabel  = t("Save"),
 						onSelect     = function (filename)
-							Game.SaveGame(filename)
+							Game.SaveGame(Format.SaveDate(Game.time).." "..filename)
 							ui:DropLayer()
 						end,
 						onCancel    = function ()

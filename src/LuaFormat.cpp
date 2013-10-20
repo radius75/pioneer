@@ -46,6 +46,13 @@ static int l_format_date(lua_State *l)
 	return 1;
 }
 
+static int l_format_date_for_save(lua_State *l)
+{
+	double t = luaL_checknumber(l, 1);
+	lua_pushstring(l, format_date_for_save(t).c_str());
+	return 1;
+}
+
 /*
  * Function: Distance
  *
@@ -114,6 +121,7 @@ void LuaFormat::Register()
 
 	static const luaL_Reg l_methods[] = {
 		{ "Date",     l_format_date     },
+		{ "SaveDate", l_format_date_for_save },
 		{ "Distance", l_format_distance },
 		{ "Money",    l_format_money    },
 		{ 0, 0 }

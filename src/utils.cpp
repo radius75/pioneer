@@ -24,6 +24,7 @@ public:
 	timedate(int stamp) { *this = stamp; }
 	timedate &operator=(int stamp);
 	std::string fmt_time_date();
+	std::string fmt_time_date_for_save();
 	std::string fmt_date();
 private:
 	int hour, minute, second, day, month, year;
@@ -86,6 +87,14 @@ std::string timedate::fmt_time_date()
 	return buf;
 }
 
+std::string timedate::fmt_time_date_for_save()
+{
+	char buf[32];
+	snprintf(buf, sizeof (buf), "%d-%02d-%02d_%02d-%02d-%02d",
+	         year, month + 1, day + 1, hour, minute, second);
+	return buf;
+}
+
 std::string timedate::fmt_date()
 {
 	char buf[16];
@@ -98,6 +107,12 @@ std::string format_date(double t)
 {
 	timedate stamp = int(t);
 	return stamp.fmt_time_date();
+}
+
+std::string format_date_for_save(double t)
+{
+	timedate stamp = int(t);
+	return stamp.fmt_time_date_for_save();
 }
 
 std::string format_date_only(double t)
