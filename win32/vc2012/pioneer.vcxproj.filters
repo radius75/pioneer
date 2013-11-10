@@ -27,9 +27,6 @@
     <ClCompile Include="..\..\src\CommodityTradeWidget.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\DeadVideoLink.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\DynamicBody.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -46,9 +43,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\GameConfig.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\GameMenuView.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\GeoSphere.cpp">
@@ -294,9 +288,6 @@
     <ClCompile Include="..\..\src\Color.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\FileSelectorWidget.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\Game.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -447,7 +438,13 @@
     <ClCompile Include="..\..\src\JobQueue.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\CoreCount.cpp">
+    <ClCompile Include="..\..\contrib\PicoDDS\PicoDDS.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\FaceGenManager.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\SpeedLines.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -461,13 +458,7 @@
     <ClInclude Include="..\..\src\AmbientSounds.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\BezierCurve.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\Body.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\BufferObject.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\buildopts.h">
@@ -483,9 +474,6 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\CommodityTradeWidget.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\DeadVideoLink.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\DeleteEmitter.h">
@@ -515,9 +503,6 @@
     <ClInclude Include="..\..\src\gameconsts.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\GameMenuView.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\GeoSphere.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -534,9 +519,6 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\LuaEquipDef.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\LuaCargoBody.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\LuaChatForm.h">
@@ -621,9 +603,6 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\RefCounted.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\RefList.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\SectorView.h">
@@ -770,9 +749,6 @@
     <ClInclude Include="..\..\src\MathUtil.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\FileSelectorWidget.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\Game.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -917,14 +893,18 @@
     <ClInclude Include="..\..\src\JobQueue.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\CoreCount.h">
+    <ClInclude Include="..\..\contrib\PicoDDS\PicoDDS.h">
       <Filter>src</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\..\src\Makefile.am">
+    <ClInclude Include="..\..\src\FaceGenManager.h">
       <Filter>src</Filter>
-    </None>
+    </ClInclude>
+    <ClInclude Include="..\..\..\pioneer\src\EquipSet.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\SpeedLines.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\..\src\win32\pioneer.rc">

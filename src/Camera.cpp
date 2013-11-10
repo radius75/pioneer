@@ -104,6 +104,9 @@ void Camera::Draw(Renderer *renderer, const Body *excludeBody)
 
 	m_renderer = renderer;
 
+	m_renderer->SetDepthWrite(true);
+	m_renderer->SetDepthTest(true);
+
 	glPushAttrib(GL_ALL_ATTRIB_BITS & (~GL_POINT_BIT));
 
 	m_renderer->SetPerspectiveProjection(m_fovAng, m_width/m_height, m_zNear, m_zFar);
@@ -263,12 +266,10 @@ void Camera::DrawSpike(double rad, const vector3d &viewCoords, const matrix4x4d 
 		}
 	}
 
-	glPushMatrix();
 	m_renderer->SetTransform(trans);
 	m_renderer->DrawTriangles(&va, Graphics::vtxColorMaterial, TRIANGLE_FAN);
 	m_renderer->SetBlendMode(BLEND_SOLID);
 	m_renderer->SetDepthTest(true);
-	glPopMatrix();
 }
 
 void Camera::CalcShadows(const int lightNum, const Body *b, std::vector<Shadow> &shadowsOut) const {

@@ -249,7 +249,7 @@ void TextureFont::RenderString(const char *str, float x, float y, const Color &c
 		}
 	}
 
-	m_renderer->DrawTriangles(&m_vertices, m_mat.Get());
+	m_renderer->DrawTriangles(&m_vertices, m_mat.get());
 }
 
 Color TextureFont::RenderMarkup(const char *str, float x, float y, const Color &color)
@@ -310,7 +310,7 @@ Color TextureFont::RenderMarkup(const char *str, float x, float y, const Color &
 		}
 	}
 
-	m_renderer->DrawTriangles(&m_vertices, m_mat.Get());
+	m_renderer->DrawTriangles(&m_vertices, m_mat.get());
 	return c;
 }
 
@@ -338,7 +338,7 @@ TextureFont::TextureFont(const FontDescriptor &descriptor, Graphics::Renderer *r
 	const bool outline = GetDescriptor().outline;
 
 	// temporary pixel buffer for the glyph atlas
-	const Graphics::TextureFormat tex_format = outline ? Graphics::TEXTURE_LUMINANCE_ALPHA : Graphics::TEXTURE_INTENSITY;
+	const Graphics::TextureFormat tex_format = outline ? Graphics::TEXTURE_LUMINANCE_ALPHA_88 : Graphics::TEXTURE_INTENSITY_8;
 	const int tex_bpp = outline ? 2 : 1;
 	std::vector<unsigned char> pixBuf(tex_bpp * FONT_TEXTURE_WIDTH * FONT_TEXTURE_MAX_HEIGHT);
 	std::fill(pixBuf.begin(), pixBuf.end(), 0);
@@ -436,7 +436,7 @@ TextureFont::TextureFont(const FontDescriptor &descriptor, Graphics::Renderer *r
 				}
 
 				assert(tex_bpp == 2);
-				assert(tex_format == Graphics::TEXTURE_LUMINANCE_ALPHA);
+				assert(tex_format == Graphics::TEXTURE_LUMINANCE_ALPHA_88);
 
 				//copy to the atlas texture
 				//stroke first
@@ -492,7 +492,7 @@ TextureFont::TextureFont(const FontDescriptor &descriptor, Graphics::Renderer *r
 				}
 
 				assert(tex_bpp == 1);
-				assert(tex_format == Graphics::TEXTURE_INTENSITY);
+				assert(tex_format == Graphics::TEXTURE_INTENSITY_8);
 
 				//copy glyph bitmap to the atlas texture
 				//the glyphs are upside down in the texture due to how freetype stores them
@@ -564,7 +564,7 @@ TextureFont::TextureFont(const FontDescriptor &descriptor, Graphics::Renderer *r
 	Graphics::MaterialDescriptor desc;
 	desc.vertexColors = true; //to allow per-character colors
 	desc.textures = 1;
-	m_mat.Reset(m_renderer->CreateMaterial(desc));
+	m_mat.reset(m_renderer->CreateMaterial(desc));
 	Graphics::TextureDescriptor textureDescriptor(tex_format, tex_size, Graphics::NEAREST_CLAMP, false, false);
 	m_texture.Reset(m_renderer->CreateTexture(textureDescriptor));
 	m_mat->texture0 = m_texture.Get();
@@ -577,9 +577,7 @@ TextureFont::TextureFont(const FontDescriptor &descriptor, Graphics::Renderer *r
 #endif
 
 	//upload atlas
-	const Graphics::ImageFormat image_format = (tex_format == Graphics::TEXTURE_LUMINANCE_ALPHA
-		 ? Graphics::IMAGE_LUMINANCE_ALPHA : Graphics::IMAGE_INTENSITY);
-	m_texture->Update(&pixBuf[0], tex_size, image_format, Graphics::IMAGE_UNSIGNED_BYTE);
+	m_texture->Update(&pixBuf[0], tex_size, tex_format);
 
 	if (outline)
 		FT_Stroker_Done(stroker);

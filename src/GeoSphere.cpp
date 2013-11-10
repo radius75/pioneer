@@ -62,6 +62,16 @@ static void print_info(const SystemBody *sbody, const Terrain *terrain)
 		sbody->name.c_str(), terrain->GetHeightFractalName(), terrain->GetColorFractalName(), sbody->seed);
 }
 
+// static
+void GeoSphere::UpdateAllGeoSpheres()
+{
+	for(std::vector<GeoSphere*>::iterator i = s_allGeospheres.begin(); i != s_allGeospheres.end(); ++i)
+	{
+		(*i)->Update();
+	}
+}
+
+// static
 void GeoSphere::OnChangeDetailLevel()
 {
 //#warning "cancel jobs"
@@ -82,7 +92,7 @@ void GeoSphere::OnChangeDetailLevel()
 	assert(s_patchContext->edgeLen <= GEOPATCH_MAX_EDGELEN);
 
 	// reinit the geosphere terrain data
-	for(std::vector<GeoSphere*>::iterator i = s_allGeospheres.begin(); i != s_allGeospheres.end(); ++i) 
+	for(std::vector<GeoSphere*>::iterator i = s_allGeospheres.begin(); i != s_allGeospheres.end(); ++i)
 	{
 		// clearout anything we don't need
 		(*i)->Reset();
@@ -93,7 +103,7 @@ void GeoSphere::OnChangeDetailLevel()
 	}
 }
 
-//static 
+//static
 bool GeoSphere::OnAddQuadSplitResult(const SystemPath &path, SQuadSplitResult *res)
 {
 	// Find the correct GeoSphere via it's system path, and give it the split result
@@ -111,7 +121,7 @@ bool GeoSphere::OnAddQuadSplitResult(const SystemPath &path, SQuadSplitResult *r
 	return false;
 }
 
-//static 
+//static
 bool GeoSphere::OnAddSingleSplitResult(const SystemPath &path, SSingleSplitResult *res)
 {
 	// Find the correct GeoSphere via it's system path, and give it the split result
@@ -169,8 +179,8 @@ void GeoSphere::Reset()
 
 	for (int p=0; p<NUM_PATCHES; p++) {
 		// delete patches
-		if (m_patches[p].Valid()) {
-			m_patches[p].Reset();
+		if (m_patches[p]) {
+			m_patches[p].reset();
 		}
 	}
 
@@ -179,7 +189,7 @@ void GeoSphere::Reset()
 
 #define GEOSPHERE_TYPE	(m_sbody->type)
 
-GeoSphere::GeoSphere(const SystemBody *body) : m_sbody(body), m_terrain(Terrain::InstanceTerrain(body)), 
+GeoSphere::GeoSphere(const SystemBody *body) : m_sbody(body), m_terrain(Terrain::InstanceTerrain(body)),
 	m_hasTempCampos(false), m_tempCampos(0.0), mCurrentNumPatches(0), mCurrentMemAllocatedToPatches(0), m_initStage(eBuildFirstPatches)
 {
 	print_info(body, m_terrain.Get());
@@ -285,8 +295,8 @@ void GeoSphere::ProcessSplitResults()
 
 void GeoSphere::BuildFirstPatches()
 {
-	assert(!m_patches[0].Valid());
-	if(m_patches[0].Valid())
+	assert(!m_patches[0]);
+	if(m_patches[0])
 		return;
 
 	// generate root face patches of the cube/sphere
@@ -301,15 +311,15 @@ void GeoSphere::BuildFirstPatches()
 
 	const uint64_t maxShiftDepth = GeoPatchID::MAX_SHIFT_DEPTH;
 
-	m_patches[0].Reset(new GeoPatch(s_patchContext, this, p1, p2, p3, p4, 0, (0ULL << maxShiftDepth)));
-	m_patches[1].Reset(new GeoPatch(s_patchContext, this, p4, p3, p7, p8, 0, (1ULL << maxShiftDepth)));
-	m_patches[2].Reset(new GeoPatch(s_patchContext, this, p1, p4, p8, p5, 0, (2ULL << maxShiftDepth)));
-	m_patches[3].Reset(new GeoPatch(s_patchContext, this, p2, p1, p5, p6, 0, (3ULL << maxShiftDepth)));
-	m_patches[4].Reset(new GeoPatch(s_patchContext, this, p3, p2, p6, p7, 0, (4ULL << maxShiftDepth)));
-	m_patches[5].Reset(new GeoPatch(s_patchContext, this, p8, p7, p6, p5, 0, (5ULL << maxShiftDepth)));
+	m_patches[0].reset(new GeoPatch(s_patchContext, this, p1, p2, p3, p4, 0, (0ULL << maxShiftDepth)));
+	m_patches[1].reset(new GeoPatch(s_patchContext, this, p4, p3, p7, p8, 0, (1ULL << maxShiftDepth)));
+	m_patches[2].reset(new GeoPatch(s_patchContext, this, p1, p4, p8, p5, 0, (2ULL << maxShiftDepth)));
+	m_patches[3].reset(new GeoPatch(s_patchContext, this, p2, p1, p5, p6, 0, (3ULL << maxShiftDepth)));
+	m_patches[4].reset(new GeoPatch(s_patchContext, this, p3, p2, p6, p7, 0, (4ULL << maxShiftDepth)));
+	m_patches[5].reset(new GeoPatch(s_patchContext, this, p8, p7, p6, p5, 0, (5ULL << maxShiftDepth)));
 	for (int i=0; i<NUM_PATCHES; i++) {
 		for (int j=0; j<4; j++) {
-			m_patches[i]->edgeFriend[j] = m_patches[geo_sphere_edge_friends[i][j]].Get();
+			m_patches[i]->edgeFriend[j] = m_patches[geo_sphere_edge_friends[i][j]].get();
 		}
 	}
 
@@ -323,18 +333,16 @@ void GeoSphere::BuildFirstPatches()
 static const float g_ambient[4] = { 0, 0, 0, 1.0 };
 
 static void DrawAtmosphereSurface(Graphics::Renderer *renderer,
-	const vector3d &campos, float rad, Graphics::Material *mat)
+	const matrix4x4d &modelView, const vector3d &campos, float rad, Graphics::Material *mat)
 {
 	const int LAT_SEGS = 20;
 	const int LONG_SEGS = 20;
 	vector3d yaxis = campos.Normalized();
 	vector3d zaxis = vector3d(1.0,0.0,0.0).Cross(yaxis).Normalized();
 	vector3d xaxis = yaxis.Cross(zaxis);
-	const matrix4x4d m = matrix4x4d::MakeRotMatrix(xaxis, yaxis, zaxis).InverseOf();
+	const matrix4x4d invrot = matrix4x4d::MakeRotMatrix(xaxis, yaxis, zaxis).InverseOf();
 
-	glPushMatrix();
-	glScalef(rad, rad, rad);
-	glMultMatrixd(&m[0]);
+	renderer->SetTransform(modelView * matrix4x4d::ScaleMatrix(rad, rad, rad) * invrot);
 
 	// what is this? Well, angle to the horizon is:
 	// acos(planetRadius/viewerDistFromSphereCentre)
@@ -375,8 +383,6 @@ static void DrawAtmosphereSurface(Graphics::Renderer *renderer,
 		}
 		renderer->DrawTriangles(&v, mat, Graphics::TRIANGLE_STRIP);
 	}
-
-	glPopMatrix();
 }
 
 void GeoSphere::Update()
@@ -386,12 +392,12 @@ void GeoSphere::Update()
 	case eBuildFirstPatches:
 		BuildFirstPatches();
 		break;
-	case eRequestedFirstPatches: 
+	case eRequestedFirstPatches:
 		{
 			ProcessSplitResults();
 			uint8_t numValidPatches = 0;
 			for (int i=0; i<NUM_PATCHES; i++) {
-				if(m_patches[i]->heights.Valid()) {
+				if(m_patches[i]->heights) {
 					++numValidPatches;
 				}
 			}
@@ -415,34 +421,32 @@ void GeoSphere::Update()
 	}
 }
 
-void GeoSphere::Render(Graphics::Renderer *renderer, vector3d campos, const float radius, const float scale, const std::vector<Camera::Shadow> &shadows)
+void GeoSphere::Render(Graphics::Renderer *renderer, const matrix4x4d &modelView, vector3d campos, const float radius, const float scale, const std::vector<Camera::Shadow> &shadows)
 {
 	// store this for later usage in the update method.
 	m_tempCampos = campos;
 	m_hasTempCampos = true;
 
-	if(m_initStage<eDefaultUpdateState)
+	if(m_initStage < eDefaultUpdateState)
 		return;
 
-	glPushMatrix();
-	glTranslated(-campos.x, -campos.y, -campos.z);
+	matrix4x4d trans = modelView;
+	trans.Translate(-campos.x, -campos.y, -campos.z);
+	renderer->SetTransform(trans); //need to set this for the following line to work
 	Graphics::Frustum frustum = Graphics::Frustum::FromGLState();
 
 	// no frustum test of entire geosphere, since Space::Render does this
 	// for each body using its GetBoundingRadius() value
 
 	//First draw - create materials (they do not change afterwards)
-	if (!m_surfaceMaterial.Valid())
+	if (!m_surfaceMaterial)
 		SetUpMaterials();
 
 	if (Graphics::AreShadersEnabled()) {
-		matrix4x4d modelMatrix;
-		glGetDoublev (GL_MODELVIEW_MATRIX, &modelMatrix[0]);
-
 		//Update material parameters
 		//XXX no need to calculate AP every frame
 		m_materialParameters.atmosphere = m_sbody->CalcAtmosphereParams();
-		m_materialParameters.atmosphere.center = modelMatrix * vector3d(0.0, 0.0, 0.0);
+		m_materialParameters.atmosphere.center = trans * vector3d(0.0, 0.0, 0.0);
 		m_materialParameters.atmosphere.planetRadius = radius;
 		m_materialParameters.atmosphere.scale = scale;
 
@@ -458,12 +462,11 @@ void GeoSphere::Render(Graphics::Renderer *renderer, vector3d campos, const floa
 			// make atmosphere sphere slightly bigger than required so
 			// that the edges of the pixel shader atmosphere jizz doesn't
 			// show ugly polygonal angles
-			DrawAtmosphereSurface(renderer, campos, m_materialParameters.atmosphere.atmosRadius*1.01, m_atmosphereMaterial.Get());
+			DrawAtmosphereSurface(renderer, trans, campos, m_materialParameters.atmosphere.atmosRadius*1.01, m_atmosphereMaterial.get());
 			renderer->SetDepthWrite(true);
 			renderer->SetBlendMode(Graphics::BLEND_SOLID);
 		}
 	}
-	glPopMatrix();
 
 	Color ambient;
 	Color &emission = m_surfaceMaterial->emissive;
@@ -501,9 +504,22 @@ void GeoSphere::Render(Graphics::Renderer *renderer, vector3d campos, const floa
 	// to be removed when someone rewrites terrain
 	m_surfaceMaterial->Apply();
 
+	renderer->SetTransform(modelView);
+
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glEnableClientState(GL_NORMAL_ARRAY);
+	glEnableClientState(GL_COLOR_ARRAY);
+
 	for (int i=0; i<NUM_PATCHES; i++) {
-		m_patches[i]->Render(campos, frustum);
+		m_patches[i]->Render(renderer, campos, modelView, frustum);
 	}
+
+	glDisableClientState(GL_VERTEX_ARRAY);
+	glDisableClientState(GL_NORMAL_ARRAY);
+	glDisableClientState(GL_COLOR_ARRAY);
+
+	glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+	glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	m_surfaceMaterial->Unapply();
 
@@ -530,25 +546,37 @@ void GeoSphere::SetUpMaterials()
 		(m_sbody->type == SystemBody::TYPE_STAR_M)) {
 		//dim star (emits and receives light)
 		surfDesc.lighting = true;
-		surfDesc.atmosphere = false;
+		surfDesc.quality &= ~Graphics::GL2::HAS_ATMOSPHERE;
 	}
 	else if (m_sbody->GetSuperType() == SystemBody::SUPERTYPE_STAR) {
 		//normal star
 		surfDesc.lighting = false;
-		surfDesc.atmosphere = false;
+		surfDesc.quality &= ~Graphics::GL2::HAS_ATMOSPHERE;
 	} else {
 		//planetoid with or without atmosphere
 		const SystemBody::AtmosphereParameters ap(m_sbody->CalcAtmosphereParams());
 		surfDesc.lighting = true;
-		surfDesc.atmosphere = (ap.atmosDensity > 0.0);
+		if(ap.atmosDensity > 0.0) {
+			surfDesc.quality |= Graphics::GL2::HAS_ATMOSPHERE;
+		} else {
+			surfDesc.quality &= ~Graphics::GL2::HAS_ATMOSPHERE;
+		}
 	}
-	m_surfaceMaterial.Reset(Pi::renderer->CreateMaterial(surfDesc));
+
+	const bool bEnableEclipse = (Pi::config->Int("DisableEclipse") == 0);
+	if (bEnableEclipse) {
+		surfDesc.quality |= Graphics::GL2::HAS_ECLIPSES;
+	}
+	m_surfaceMaterial.reset(Pi::renderer->CreateMaterial(surfDesc));
 
 	//Shader-less atmosphere is drawn in Planet
 	if (Graphics::AreShadersEnabled()) {
 		Graphics::MaterialDescriptor skyDesc;
 		skyDesc.effect = Graphics::EFFECT_GEOSPHERE_SKY;
 		skyDesc.lighting = true;
-		m_atmosphereMaterial.Reset(Pi::renderer->CreateMaterial(skyDesc));
+		if (bEnableEclipse) {
+			skyDesc.quality |= Graphics::GL2::HAS_ECLIPSES;
+		}
+		m_atmosphereMaterial.reset(Pi::renderer->CreateMaterial(skyDesc));
 	}
 }

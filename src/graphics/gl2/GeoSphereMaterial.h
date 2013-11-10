@@ -13,6 +13,13 @@
 
 namespace Graphics {
 	namespace GL2 {
+
+		// Atmosphere rendering customisation flags
+		enum AtmosphereQuality {
+			HAS_ATMOSPHERE = 1 << 0,
+			HAS_ECLIPSES   = 1 << 1
+		};
+
 		class GeoSphereProgram : public Program {
 		public:
 			GeoSphereProgram(const std::string &filename, const std::string &defines);
@@ -27,10 +34,12 @@ namespace Graphics {
 
 			Uniform shadows;
 			Uniform occultedLight;
-			Uniform shadowCentre;
+			Uniform shadowCentreX;
+			Uniform shadowCentreY;
+			Uniform shadowCentreZ;
 			Uniform srad;
 			Uniform lrad;
-
+			Uniform sdivlrad;
 
 		protected:
 			virtual void InitUniforms();

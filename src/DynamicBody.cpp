@@ -9,6 +9,8 @@
 #include "Planet.h"
 #include "Pi.h"
 
+static const float KINETIC_ENERGY_MULT = 0.00001f;
+
 DynamicBody::DynamicBody(): ModelBody()
 {
 	m_flags = Body::FLAG_CAN_MOVE_FRAME;
@@ -186,6 +188,8 @@ void DynamicBody::TimeStepUpdate(const float timeStep)
 	} else {
 		m_oldAngDisplacement = vector3d(0.0);
 	}
+
+	ModelBody::TimeStepUpdate(timeStep);
 }
 
 void DynamicBody::UpdateInterpTransform(double alpha)
@@ -239,7 +243,6 @@ void DynamicBody::SetAngVelocity(const vector3d &v)
 	m_angVel = v;
 }
 
-#define KINETIC_ENERGY_MULT	0.00001f
 bool DynamicBody::OnCollision(Object *o, Uint32 flags, double relVel)
 {
 	// don't bother doing collision damage from a missile that will now explode, or may have already

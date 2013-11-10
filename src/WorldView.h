@@ -9,6 +9,7 @@
 #include "gui/GuiWidget.h"
 #include "View.h"
 #include "Serializer.h"
+#include "SpeedLines.h"
 #include "Background.h"
 #include "EquipType.h"
 #include "CameraController.h"
@@ -50,6 +51,7 @@ public:
 
 protected:
 	virtual void OnSwitchTo();
+	virtual void OnSwitchFrom();
 private:
 	void InitObject();
 
@@ -110,12 +112,14 @@ private:
 	void OnPlayerChangeFlightControlState();
 	void SelectBody(Body *, bool reselectIsDeselect);
 	Body* PickBody(const double screenX, const double screenY) const;
-	void MouseButtonDown(int button, int x, int y);
+	void MouseWheel(bool up);
 
 	NavTunnelWidget *m_navTunnel;
+	std::unique_ptr<SpeedLines> m_speedLines;
 
 	Gui::ImageButton *m_hyperspaceButton;
 
+	Gui::Label *m_pauseText;
 	Gui::Label *m_showCameraName;
 	Gui::Fixed *m_commsOptions;
 	Gui::VBox *m_commsNavOptions;
@@ -143,15 +147,15 @@ private:
 	sigc::connection m_onHyperspaceTargetChangedCon;
 	sigc::connection m_onPlayerChangeTargetCon;
 	sigc::connection m_onChangeFlightControlStateCon;
-	sigc::connection m_onMouseButtonDown;
+	sigc::connection m_onMouseWheelCon;
 
 	Gui::LabelSet *m_bodyLabels;
 	std::map<Body*,vector3d> m_projectedPos;
 
-	ScopedPtr<Camera> m_camera;
-	ScopedPtr<InternalCameraController> m_internalCameraController;
-	ScopedPtr<ExternalCameraController> m_externalCameraController;
-	ScopedPtr<SiderealCameraController> m_siderealCameraController;
+	std::unique_ptr<Camera> m_camera;
+	std::unique_ptr<InternalCameraController> m_internalCameraController;
+	std::unique_ptr<ExternalCameraController> m_externalCameraController;
+	std::unique_ptr<SiderealCameraController> m_siderealCameraController;
 	CameraController *m_activeCameraController; //one of the above
 
 	Indicator m_velIndicator;
@@ -161,7 +165,7 @@ private:
 	Indicator m_targetLeadIndicator;
 	Indicator m_mouseDirIndicator;
 
-	ScopedPtr<Gui::TexturedQuad> m_indicatorMousedir;
+	std::unique_ptr<Gui::TexturedQuad> m_indicatorMousedir;
 	vector2f m_indicatorMousedirSize;
 };
 

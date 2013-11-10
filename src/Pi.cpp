@@ -7,12 +7,12 @@
 #include "CargoBody.h"
 #include "CityOnPlanet.h"
 #include "DeathView.h"
+#include "FaceGenManager.h"
 #include "Factions.h"
 #include "FileSystem.h"
 #include "Frame.h"
 #include "GalacticView.h"
 #include "Game.h"
-#include "GameMenuView.h"
 #include "GeoSphere.h"
 #include "Intro.h"
 #include "Lang.h"
@@ -63,6 +63,7 @@
 #include "Tombstone.h"
 #include "UIView.h"
 #include "WorldView.h"
+#include "KeyBindings.h"
 #include "EnumStrings.h"
 #include "galaxy/CustomSystem.h"
 #include "galaxy/Galaxy.h"
@@ -76,16 +77,15 @@
 #include "scenegraph/Lua.h"
 #include "ui/Context.h"
 #include "ui/Lua.h"
-#include "CoreCount.h"
 #include <algorithm>
 #include <sstream>
 
 float Pi::gameTickAlpha;
-float Pi::scrAspect;
-sigc::signal<void, SDL_keysym*> Pi::onKeyPress;
-sigc::signal<void, SDL_keysym*> Pi::onKeyRelease;
+sigc::signal<void, SDL_Keysym*> Pi::onKeyPress;
+sigc::signal<void, SDL_Keysym*> Pi::onKeyRelease;
 sigc::signal<void, int, int, int> Pi::onMouseButtonUp;
 sigc::signal<void, int, int, int> Pi::onMouseButtonDown;
+sigc::signal<void, bool> Pi::onMouseWheel;
 sigc::signal<void> Pi::onPlayerChangeTarget;
 sigc::signal<void> Pi::onPlayerChangeFlightControlState;
 sigc::signal<void> Pi::onPlayerChangeEquipment;
@@ -94,7 +94,7 @@ LuaSerializer *Pi::luaSerializer;
 LuaTimer *Pi::luaTimer;
 LuaNameGen *Pi::luaNameGen;
 int Pi::keyModState;
-char Pi::keyState[SDLK_LAST];
+std::map<SDL_Keycode,bool> Pi::keyState; // XXX SDL2 SDLK_LAST
 char Pi::mouseButton[6];
 int Pi::mouseMotion[2];
 bool Pi::doingMouseGrab = false;
@@ -108,7 +108,7 @@ SpaceStationView *Pi::spaceStationView;
 UIView *Pi::infoView;
 SectorView *Pi::sectorView;
 GalacticView *Pi::galacticView;
-GameMenuView *Pi::gameMenuView;
+UIView *Pi::settingsView;
 SystemView *Pi::systemView;
 SystemInfoView *Pi::systemInfoView;
 ShipCpanel *Pi::cpan;
@@ -124,31 +124,33 @@ GameConfig *Pi::config;
 struct DetailLevel Pi::detail = { 0, 0 };
 bool Pi::joystickEnabled;
 bool Pi::mouseYInvert;
-std::vector<Pi::JoystickState> Pi::joysticks;
+std::map<SDL_JoystickID,Pi::JoystickState> Pi::joysticks;
 bool Pi::navTunnelDisplayed;
+bool Pi::speedLinesDisplayed = false;
 Gui::Fixed *Pi::menu;
+bool Pi::DrawGUI = true;
 Graphics::Renderer *Pi::renderer;
 RefCountedPtr<UI::Context> Pi::ui;
 ModelCache *Pi::modelCache;
 Intro *Pi::intro;
+SDLGraphics *Pi::sdl;
 
 #if WITH_OBJECTVIEWER
 ObjectViewerView *Pi::objectViewerView;
 #endif
 
 Sound::MusicPlayer Pi::musicPlayer;
-ScopedPtr<JobQueue> Pi::jobQueue;
+std::unique_ptr<JobQueue> Pi::jobQueue;
 
-static void draw_progress(float progress)
+static void draw_progress(UI::Gauge *gauge, UI::Label *label, float progress)
 {
-	float w, h;
+	gauge->SetValue(progress);
+	label->SetText(stringf(Lang::SIMULATING_UNIVERSE_EVOLUTION_N_BYEARS, formatarg("age", progress * 13.7f)));
+
 	Pi::renderer->BeginFrame();
 	Pi::renderer->EndFrame();
-	Gui::Screen::EnterOrtho();
-	std::string msg = stringf(Lang::SIMULATING_UNIVERSE_EVOLUTION_N_BYEARS, formatarg("age", progress * 13.7f));
-	Gui::Screen::MeasureString(msg, w, h);
-	Gui::Screen::RenderString(msg, 0.5f*(Gui::Screen::GetWidth()-w), 0.5f*(Gui::Screen::GetHeight()-h));
-	Gui::Screen::LeaveOrtho();
+	Pi::ui->Update();
+	Pi::ui->Draw();
 	Pi::renderer->SwapBuffers();
 }
 
@@ -200,7 +202,7 @@ static void LuaInit()
 
 	// XXX load everything. for now, just modules
 	lua_State *l = Lua::manager->GetLuaState();
-	pi_lua_dofile_recursive(l, "libs");
+	pi_lua_dofile(l, "libs/autoload.lua");
 	pi_lua_dofile_recursive(l, "ui");
 	pi_lua_dofile_recursive(l, "modules");
 
@@ -261,31 +263,13 @@ void Pi::Init()
 
 	ModManager::Init();
 
-	if (!Lang::LoadStrings(config->String("Lang")))
-		abort();
+	Lang::Resource res(Lang::GetResource("core", config->String("Lang")));
+	Lang::MakeCore(res);
 
 	Pi::detail.planets = config->Int("DetailPlanets");
 	Pi::detail.textures = config->Int("Textures");
 	Pi::detail.fracmult = config->Int("FractalMultiple");
 	Pi::detail.cities = config->Int("DetailCities");
-
-#ifdef __linux__
-	// there appears to be a bug in the Linux evdev input driver that stops
-	// DGA mouse grab restoring state correctly. SDL can use an alternative
-	// method, but its only configurable via environment variable. Here we set
-	// that environment variable (unless the user explicitly doesn't want it
-	// via config).
-	//
-	// we also enable warp-after-grab here, as the SDL alternative method
-	// doesn't restore the mouse pointer to its pre-grab position
-	//
-	// XXX SDL2 uses a different mechanism entirely and this environment
-	// variable doesn't exist there, so we can get rid of it when we go to SDL2
-	if (!config->Int("SDLUseDGAMouse")) {
-		Pi::warpAfterMouseGrab = true;
-		setenv("SDL_VIDEO_X11_DGAMOUSE", "0", 1);
-	}
-#endif
 
 	// Initialize SDL
 	Uint32 sdlInitFlags = SDL_INIT_VIDEO | SDL_INIT_JOYSTICK;
@@ -296,9 +280,6 @@ void Pi::Init()
 		OS::Error("SDL initialization failed: %s\n", SDL_GetError());
 	}
 
-	// needed for the UI
-	SDL_EnableUNICODE(1);
-
 	// Do rest of SDL video initialization and create Renderer
 	Graphics::Settings videoSettings = {};
 	videoSettings.width = config->Int("ScrWidth");
@@ -308,6 +289,9 @@ void Pi::Init()
 	videoSettings.requestedSamples = config->Int("AntiAliasingMode");
 	videoSettings.vsync = (config->Int("VSync") != 0);
 	videoSettings.useTextureCompression = (config->Int("UseTextureCompression") != 0);
+	videoSettings.enableDebugMessages = (config->Int("EnableGLDebug") != 0);
+	videoSettings.iconFile = OS::GetIconFilename();
+	videoSettings.title = "Pioneer";
 
 	Pi::renderer = Graphics::Init(videoSettings);
 	{
@@ -322,11 +306,6 @@ void Pi::Init()
 		fclose(f);
 	}
 
-	OS::LoadWindowIcon();
-	SDL_WM_SetCaption("Pioneer","Pioneer");
-
-	Pi::scrAspect = videoSettings.width / float(videoSettings.height);
-
 	Pi::rng.IncRefCount(); // so nothing tries to free it
 	Pi::rng.seed(time(0));
 
@@ -335,14 +314,16 @@ void Pi::Init()
 	mouseYInvert = (config->Int("InvertMouseY")) ? true : false;
 
 	navTunnelDisplayed = (config->Int("DisplayNavTunnel")) ? true : false;
+	speedLinesDisplayed = (config->Int("SpeedLines")) ? true : false;
 
 	EnumStrings::Init();
 
 	// get threads up
-	uint32_t numThreads = config->Int("WorkerThreads");
-	uint32_t numCores = getNumCores();
-	if (numThreads == 0) numThreads = std::max(numCores-1,1U);
-	jobQueue.Reset(new JobQueue(numThreads));
+	Uint32 numThreads = config->Int("WorkerThreads");
+	const int numCores = OS::GetNumCores();
+	assert(numCores > 0);
+	if (numThreads == 0) numThreads = std::max(Uint32(numCores) - 1, 1U);
+	jobQueue.reset(new JobQueue(numThreads));
 	printf("started %d worker threads\n", numThreads);
 
 	// XXX early, Lua init needs it
@@ -352,7 +333,7 @@ void Pi::Init()
 	// templates. so now we have crap everywhere :/
 	Lua::Init();
 
-	Pi::ui.Reset(new UI::Context(Lua::manager, Pi::renderer, Graphics::GetScreenWidth(), Graphics::GetScreenHeight(), Lang::GetCurrentLanguage()));
+	Pi::ui.Reset(new UI::Context(Lua::manager, Pi::renderer, Graphics::GetScreenWidth(), Graphics::GetScreenHeight(), Lang::GetCore().GetLangCode()));
 
 	LuaInit();
 
@@ -360,39 +341,59 @@ void Pi::Init()
 	// that the capability exists. (Gui does not use VBOs so far)
 	Gui::Init(renderer, Graphics::GetScreenWidth(), Graphics::GetScreenHeight(), 800, 600);
 
-	draw_progress(0.1f);
+	UI::Box *box = Pi::ui->VBox(5);
+	UI::Label *label = Pi::ui->Label("");
+	label->SetFont(UI::Widget::FONT_HEADING_NORMAL);
+	UI::Gauge *gauge = Pi::ui->Gauge();
+	Pi::ui->GetTopLayer()->SetInnerWidget(
+		Pi::ui->Margin(10, UI::Margin::HORIZONTAL)->SetInnerWidget(
+			Pi::ui->Expand()->SetInnerWidget(
+				Pi::ui->Align(UI::Align::MIDDLE)->SetInnerWidget(
+					box->PackEnd(UI::WidgetSet(
+						label,
+						gauge
+					))
+				)
+			)
+		)
+    );
+
+	draw_progress(gauge, label, 0.1f);
 
 	Galaxy::Init();
-	draw_progress(0.2f);
+	draw_progress(gauge, label, 0.2f);
+
+	FaceGenManager::Init();
+	draw_progress(gauge, label, 0.25f);
 
 	Faction::Init();
-	draw_progress(0.3f);
+	draw_progress(gauge, label, 0.3f);
 
 	CustomSystem::Init();
-	draw_progress(0.4f);
+	draw_progress(gauge, label, 0.4f);
 
 	modelCache = new ModelCache(Pi::renderer);
-	draw_progress(0.5f);
+	draw_progress(gauge, label, 0.5f);
 
 //unsigned int control_word;
 //_clearfp();
 //_controlfp_s(&control_word, _EM_INEXACT | _EM_UNDERFLOW | _EM_ZERODIVIDE, _MCW_EM);
 //double fpexcept = Pi::timeAccelRates[1] / Pi::timeAccelRates[0];
 
-	draw_progress(0.6f);
+	draw_progress(gauge, label, 0.6f);
 
 	GeoSphere::Init();
-	draw_progress(0.7f);
+	draw_progress(gauge, label, 0.7f);
 
 	CityOnPlanet::Init();
-	draw_progress(0.8f);
+	draw_progress(gauge, label, 0.8f);
 
 	SpaceStation::Init();
-	draw_progress(0.9f);
+	draw_progress(gauge, label, 0.9f);
 
 	NavLights::Init(Pi::renderer);
 	Sfx::Init(Pi::renderer);
-	draw_progress(0.95f);
+	draw_progress(gauge, label, 0.95f);
 
 	if (!config->Int("DisableSound")) {
 		Sound::Init();
@@ -405,7 +406,7 @@ void Pi::Init()
 		if (config->Int("SfxMuted")) Sound::SetSfxVolume(0.f);
 		if (config->Int("MusicMuted")) GetMusicPlayer().SetEnabled(false);
 	}
-	draw_progress(1.0f);
+	draw_progress(gauge, label, 1.0f);
 
 	OS::NotifyLoadEnd();
 
@@ -451,7 +452,6 @@ void Pi::Init()
 	vector3d vel4 = c2->GetVelocityRelTo(c1);
 	double speed4 = c2->GetVelocityRelTo(c1).Length();
 
-
 	root->UpdateOrbitRails(0, 1.0);
 
 	//buildrotate test
@@ -492,7 +492,7 @@ void Pi::Init()
 
 			double xsize = 0.0, ysize = 0.0, zsize = 0.0, fakevol = 0.0, rescale = 0.0, brad = 0.0;
 			if (model) {
-				ScopedPtr<SceneGraph::Model> inst(model->MakeInstance());
+				std::unique_ptr<SceneGraph::Model> inst(model->MakeInstance());
 				model->CreateCollisionMesh();
 				Aabb aabb = model->GetCollisionMesh()->GetAabb();
 				xsize = aabb.max.x-aabb.min.x;
@@ -522,9 +522,6 @@ void Pi::Init()
 
 	luaConsole = new LuaConsole(10);
 	KeyBindings::toggleLuaConsole.onPress.connect(sigc::ptr_fun(&Pi::ToggleLuaConsole));
-
-	gameMenuView = new GameMenuView();
-	config->Save();
 }
 
 bool Pi::IsConsoleActive()
@@ -553,7 +550,6 @@ void Pi::Quit()
 {
 	Projectile::FreeModel();
 	delete Pi::intro;
-	delete Pi::gameMenuView;
 	delete Pi::luaConsole;
 	NavLights::Uninit();
 	Sfx::Uninit();
@@ -563,6 +559,7 @@ void Pi::Quit()
 	GeoSphere::Uninit();
 	Galaxy::Uninit();
 	Faction::Uninit();
+	FaceGenManager::Destroy();
 	CustomSystem::Uninit();
 	Graphics::Uninit();
 	Pi::ui.Reset(0);
@@ -574,7 +571,7 @@ void Pi::Quit()
 	StarSystem::ShrinkCache();
 	SDL_Quit();
 	FileSystem::Uninit();
-	jobQueue.Reset();
+	jobQueue.reset();
 	exit(0);
 }
 
@@ -621,9 +618,9 @@ void Pi::HandleEvents()
 					if (Pi::game) {
 						// only accessible once game started
 						if (currentView != 0) {
-							if (currentView != gameMenuView) {
+							if (currentView != settingsView) {
 								Pi::game->SetTimeAccel(Game::TIMEACCEL_PAUSED);
-								SetView(gameMenuView);
+								SetView(settingsView);
 							}
 							else {
 								Pi::game->RequestTimeAccel(Game::TIMEACCEL_1X);
@@ -643,7 +640,7 @@ void Pi::HandleEvents()
 								Pi::EndGame();
 							Pi::Quit();
 							break;
-						case SDLK_PRINT:	   // print
+						case SDLK_PRINTSCREEN: // print
 						case SDLK_KP_MULTIPLY: // screen
 						{
 							char buf[256];
@@ -748,12 +745,12 @@ void Pi::HandleEvents()
 							break; // This does nothing but it stops the compiler warnings
 					}
 				}
-				Pi::keyState[event.key.keysym.sym] = 1;
+				Pi::keyState[event.key.keysym.sym] = true;
 				Pi::keyModState = event.key.keysym.mod;
 				Pi::onKeyPress.emit(&event.key.keysym);
 				break;
 			case SDL_KEYUP:
-				Pi::keyState[event.key.keysym.sym] = 0;
+				Pi::keyState[event.key.keysym.sym] = false;
 				Pi::keyModState = event.key.keysym.mod;
 				Pi::onKeyRelease.emit(&event.key.keysym);
 				break;
@@ -770,6 +767,9 @@ void Pi::HandleEvents()
 					Pi::onMouseButtonUp.emit(event.button.button,
 							event.button.x, event.button.y);
 				}
+				break;
+			case SDL_MOUSEWHEEL:
+				Pi::onMouseWheel.emit(event.wheel.y > 0); // true = up
 				break;
 			case SDL_MOUSEMOTION:
 				Pi::mouseMotion[0] += event.motion.xrel;
@@ -801,12 +801,12 @@ void Pi::HandleEvents()
 
 void Pi::TombStoneLoop()
 {
-	ScopedPtr<Tombstone> tombstone(new Tombstone(Pi::renderer, Graphics::GetScreenWidth(), Graphics::GetScreenHeight()));
+	std::unique_ptr<Tombstone> tombstone(new Tombstone(Pi::renderer, Graphics::GetScreenWidth(), Graphics::GetScreenHeight()));
 	Uint32 last_time = SDL_GetTicks();
 	float _time = 0;
 	do {
 		Pi::HandleEvents();
-		Pi::SetMouseGrab(false);
+		Pi::renderer->GetWindow()->SetGrab(false);
 		Pi::renderer->BeginFrame();
 		tombstone->Draw(_time);
 		Pi::renderer->EndFrame();
@@ -825,14 +825,15 @@ void Pi::InitGame()
 	// games
 
 	//reset input states
+	keyState.clear();
 	keyModState = 0;
-	std::fill(keyState, keyState + COUNTOF(keyState), 0);
 	std::fill(mouseButton, mouseButton + COUNTOF(mouseButton), 0);
 	std::fill(mouseMotion, mouseMotion + COUNTOF(mouseMotion), 0);
-	for (std::vector<JoystickState>::iterator stick = joysticks.begin(); stick != joysticks.end(); ++stick) {
-		std::fill(stick->buttons.begin(), stick->buttons.end(), false);
-		std::fill(stick->hats.begin(), stick->hats.end(), 0);
-		std::fill(stick->axes.begin(), stick->axes.end(), 0.f);
+	for (std::map<SDL_JoystickID,JoystickState>::iterator stick = joysticks.begin(); stick != joysticks.end(); ++stick) {
+		JoystickState &state = stick->second;
+		std::fill(state.buttons.begin(), state.buttons.end(), false);
+		std::fill(state.hats.begin(), state.hats.end(), 0);
+		std::fill(state.axes.begin(), state.axes.end(), 0.f);
 	}
 
 	if (!config->Int("DisableSound")) AmbientSounds::Init();
@@ -857,6 +858,7 @@ void Pi::StartGame()
 	Pi::player->onUndock.connect(sigc::ptr_fun(&OnPlayerDockOrUndock));
 	Pi::player->m_equipment.onChange.connect(sigc::ptr_fun(&OnPlayerChangeEquipment));
 	cpan->ShowAll();
+	DrawGUI = true;
 	cpan->SetAlertState(Ship::ALERT_NONE);
 	OnPlayerChangeEquipment(Equip::NONE);
 	SetView(worldView);
@@ -870,7 +872,8 @@ void Pi::Start()
 {
 	Pi::intro = new Intro(Pi::renderer, Graphics::GetScreenWidth(), Graphics::GetScreenHeight());
 
-	ui->SetInnerWidget(ui->CallTemplate("MainMenu"));
+	ui->DropAllLayers();
+	ui->GetTopLayer()->SetInnerWidget(ui->CallTemplate("MainMenu"));
 
 	//XXX global ambient colour hack to make explicit the old default ambient colour dependency
 	// for some models
@@ -897,8 +900,6 @@ void Pi::Start()
 		}
 
 		Pi::renderer->BeginFrame();
-		Pi::renderer->SetPerspectiveProjection(75, Pi::GetScrAspect(), 1.f, 10000.f);
-		Pi::renderer->SetTransform(matrix4x4f::Identity());
 		intro->Draw(_time);
 		Pi::renderer->EndFrame();
 
@@ -912,7 +913,7 @@ void Pi::Start()
 		last_time = SDL_GetTicks();
 	}
 
-	ui->RemoveInnerWidget();
+	ui->GetTopLayer()->RemoveInnerWidget();
 	ui->Layout(); // UI does important things on layout, like updating keyboard shortcuts
 
 	delete Pi::intro; Pi::intro = 0;
@@ -964,6 +965,8 @@ void Pi::MainLoop()
 	if (MAX_PHYSICS_TICKS <= 0)
 		MAX_PHYSICS_TICKS = 4;
 
+	ui->DropAllLayers();
+
 	double currentTime = 0.001 * double(SDL_GetTicks());
 	double accumulator = Pi::game->GetTimeStep();
 	Pi::gameTickAlpha = 0;
@@ -984,6 +987,7 @@ void Pi::MainLoop()
 					break;
 				}
 				game->TimeStep(step);
+				GeoSphere::UpdateAllGeoSpheres();
 
 				accumulator -= step;
 			}
@@ -997,6 +1001,7 @@ void Pi::MainLoop()
 #endif
 		} else {
 			// paused
+			GeoSphere::UpdateAllGeoSpheres();
 		}
 		frame_stat++;
 
@@ -1038,7 +1043,26 @@ void Pi::MainLoop()
 		SetMouseGrab(Pi::MouseButtonState(SDL_BUTTON_RIGHT));
 
 		Pi::renderer->EndFrame();
-		Gui::Draw();
+		if( DrawGUI ) {
+			Gui::Draw();
+		} else if (game && game->IsNormalSpace()) {
+			if (config->Int("DisableScreenshotInfo")==0) {
+				const RefCountedPtr<StarSystem> sys = game->GetSpace()->GetStarSystem();
+				const SystemPath sp = sys->GetPath();
+				std::ostringstream pathStr;
+
+				// fill in pathStr from sp values and sys->GetName()
+				static const std::string comma(", ");
+				pathStr << Pi::player->GetFrame()->GetLabel() << comma << sys->GetName() << " (" << sp.sectorX << comma << sp.sectorY << comma << sp.sectorZ << ")";
+
+				// display pathStr
+				Gui::Screen::EnterOrtho();
+				Gui::Screen::PushFont("ConsoleFont");
+				Gui::Screen::RenderString(pathStr.str(), 0, 0);
+				Gui::Screen::PopFont();
+				Gui::Screen::LeaveOrtho();
+			}
+		}
 
 #if WITH_DEVKEYS
 		if (Pi::showDebugInfo) {
@@ -1052,8 +1076,7 @@ void Pi::MainLoop()
 
 		Pi::renderer->SwapBuffers();
 
-		// game exit or failed load from GameMenuView will have cleared
-		// Pi::game. we can't continue.
+		// game exit will have cleared Pi::game. we can't continue.
 		if (!Pi::game)
 			return;
 
@@ -1100,7 +1123,7 @@ void Pi::MainLoop()
 		if (SDL_GetTicks() - last_screendump > 50) {
 			last_screendump = SDL_GetTicks();
 			std::string fname = stringf(Lang::SCREENSHOT_FILENAME_TEMPLATE, formatarg("index", dumpnum++));
-			Screendump(fname.c_str(), GetScrWidth(), GetScrHeight());
+			Screendump(fname.c_str(), Graphics::GetScreenWidth(), Graphics::GetScreenHeight());
 		}
 #endif /* MAKING_VIDEO */
 	}
@@ -1163,19 +1186,19 @@ void Pi::Message(const std::string &message, const std::string &from, enum MsgLe
 void Pi::InitJoysticks() {
 	int joy_count = SDL_NumJoysticks();
 	for (int n = 0; n < joy_count; n++) {
-		JoystickState *state;
-		joysticks.push_back(JoystickState());
-		state = &joysticks.back();
+		JoystickState state;
 
-		state->joystick = SDL_JoystickOpen(n);
-		if (!state->joystick) {
+		state.joystick = SDL_JoystickOpen(n);
+		if (!state.joystick) {
 			fprintf(stderr, "SDL_JoystickOpen(%i): %s\n", n, SDL_GetError());
 			continue;
 		}
+		state.axes.resize(SDL_JoystickNumAxes(state.joystick));
+		state.buttons.resize(SDL_JoystickNumButtons(state.joystick));
+		state.hats.resize(SDL_JoystickNumHats(state.joystick));
 
-		state->axes.resize(SDL_JoystickNumAxes(state->joystick));
-		state->buttons.resize(SDL_JoystickNumButtons(state->joystick));
-		state->hats.resize(SDL_JoystickNumHats(state->joystick));
+		SDL_JoystickID joyID = SDL_JoystickInstanceID(state.joystick);
+		joysticks[joyID] = state;
 	}
 }
 
@@ -1216,16 +1239,12 @@ void Pi::SetMouseGrab(bool on)
 {
 	if (!doingMouseGrab && on) {
 		SDL_ShowCursor(0);
-		SDL_WM_GrabInput(SDL_GRAB_ON);
-		if (Pi::warpAfterMouseGrab)
-			SDL_GetMouseState(&mouseGrabWarpPos[0], &mouseGrabWarpPos[1]);
+		Pi::renderer->GetWindow()->SetGrab(true);
 		doingMouseGrab = true;
 	}
 	else if(doingMouseGrab && !on) {
-		SDL_WM_GrabInput(SDL_GRAB_OFF);
-		if (Pi::warpAfterMouseGrab)
-			SDL_WarpMouse(mouseGrabWarpPos[0], mouseGrabWarpPos[1]);
 		SDL_ShowCursor(1);
+		Pi::renderer->GetWindow()->SetGrab(false);
 		doingMouseGrab = false;
 	}
 }

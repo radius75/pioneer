@@ -23,12 +23,12 @@ public:
 	virtual Node *Clone(NodeCopyCache *cache = 0);
 	virtual const char *GetTypeName() const { return "Label3D"; }
 	void SetText(const std::string&);
-	virtual void Render(const matrix4x4f &trans, RenderData *rd);
+	virtual void Render(const matrix4x4f &trans, const RenderData *rd);
 	virtual void Accept(NodeVisitor &v);
 
 private:
 	RefCountedPtr<Graphics::Material> m_material;
-	ScopedPtr<Graphics::VertexArray> m_geometry;
+	std::unique_ptr<Graphics::VertexArray> m_geometry;
 	RefCountedPtr<Text::DistanceFieldFont> m_font;
 };
 
