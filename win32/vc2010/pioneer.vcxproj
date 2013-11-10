@@ -83,7 +83,6 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <AdditionalIncludeDirectories>../../../src;../../src;../../../pioneer-thirdparty/win32/include;../../../../pioneer-thirdparty/win32/include;../../win32/include;../../include;../../../contrib;../../contrib</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GLEW_STATIC;WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -105,9 +104,7 @@
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
-    <ClCompile>
-      <PreprocessorDefinitions>GLEW_STATIC;WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
+    <ClCompile />
     <PostBuildEvent>
       <Command>xcopy "..\..\..\pioneer-thirdparty\win32\bin\*.dll" "$(TargetDir)\*.dll" /Y /C</Command>
     </PostBuildEvent>
@@ -122,9 +119,7 @@
       <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
-    <ClCompile>
-      <PreprocessorDefinitions>GLEW_STATIC;WIN32;_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
+    <ClCompile />
     <PostBuildEvent>
       <Command>xcopy "..\..\..\pioneer-thirdparty\win32\bin\*.dll" "$(TargetDir)\*.dll" /Y /C</Command>
     </PostBuildEvent>
@@ -259,6 +254,7 @@
     <ClCompile Include="..\..\src\SpaceStation.cpp" />
     <ClCompile Include="..\..\src\SpaceStationType.cpp" />
     <ClCompile Include="..\..\src\SpaceStationView.cpp" />
+    <ClCompile Include="..\..\src\SpeedLines.cpp" />
     <ClCompile Include="..\..\src\Star.cpp" />
     <ClCompile Include="..\..\src\StationAdvertForm.cpp" />
     <ClCompile Include="..\..\src\StationBulletinBoardForm.cpp" />
@@ -425,6 +421,7 @@
     <ClInclude Include="..\..\src\SpaceStation.h" />
     <ClInclude Include="..\..\src\SpaceStationType.h" />
     <ClInclude Include="..\..\src\SpaceStationView.h" />
+    <ClInclude Include="..\..\src\SpeedLines.h" />
     <ClInclude Include="..\..\src\Star.h" />
     <ClInclude Include="..\..\src\StationAdvertForm.h" />
     <ClInclude Include="..\..\src\StationBulletinBoardForm.h" />

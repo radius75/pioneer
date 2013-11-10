@@ -11,7 +11,7 @@ include $(top_srcdir)/Makefile.common
 
 AM_CFLAGS += $(WARN_CFLAGS)
 AM_CPPFLAGS += $(WARN_CPPFLAGS)
-AM_CXXFLAGS += $(WARN_CXXFLAGS)
+AM_CXXFLAGS += $(STD_CXXFLAGS) $(WARN_CXXFLAGS)
 
 bin_PROGRAMS = pioneer
 noinst_HEADERS = \
@@ -139,6 +139,7 @@ noinst_HEADERS = \
 	SpaceStation.h \
 	SpaceStationType.h \
 	SpaceStationView.h \
+	SpeedLines.h \
 	Star.h \
 	SystemInfoView.h \
 	SystemView.h \
@@ -284,6 +285,7 @@ pioneer_SOURCES	= \
 	SpaceStation.cpp \
 	SpaceStationType.cpp \
 	SpaceStationView.cpp \
+	SpeedLines.cpp \
 	Star.cpp \
 	SystemInfoView.cpp \
 	SystemView.cpp \
