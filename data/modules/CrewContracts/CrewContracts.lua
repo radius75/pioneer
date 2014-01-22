@@ -142,11 +142,6 @@ local wageFromScore = function(score)
 	return math.floor(score * score / 100) + 10
 end
 
-local checkOffer = function(offer)
-	-- Force wage offers to be in correct range
-	return math.max(1,offer)
-end
-
 local crewInThisStation -- Table of available folk available for hire here
 local candidate -- Run-time "static" variable for onChat
 local offer
@@ -209,7 +204,7 @@ local onChat = function (form,ref,option)
 		form:Clear()
 		form:SetMessage(l.POTENTIAL_CREW_MEMBERS:interp({station=station.label}))
 		for k,c in ipairs(crewInThisStation) do
-			form:AddOption(l.CREWMEMBER_WAGE_PER_WEEK:interp({potentialCrewMember = c.name,wage = c.estimatedWage}),k)
+			form:AddOption(l.CREWMEMBER_WAGE_PER_WEEK:interp({potentialCrewMember = c.name,wage = Format.Money(c.estimatedWage)}),k)
 		end
 	end
 
@@ -232,11 +227,44 @@ local onChat = function (form,ref,option)
 			wage = Format.Money(offer),
 			response = response,
 		}))
+
+		-- mixed calculation for wages:
+		-- Exponential function for small offer value
+		-- Linear function for bigger offer value
+		limitHigh = 20 -- set limit for High offset (value for linear offset)
+		limitLow = 5 -- set limit for Low offset (value for linear offset)
+		if math.ceil(offer/2) > limitHigh then
+			raiseHigh = offer + limitHigh -- raise by limitHigh
+		else
+			raiseHigh = offer + math.ceil(offer/2) -- raise by less value than limitHigh
+		end
+		if math.ceil(offer/10) > limitLow then
+			raiseLow = offer + limitLow -- raise by limitLow
+		else
+			raiseLow = offer + math.ceil(offer/10) -- raise by less value than limitLow
+		end
+		if math.ceil(offer/11) > limitLow then
+			reduceLow = offer - limitLow -- reduce by limitLow
+		else
+			reduceLow = offer - math.ceil(offer/11) -- reduce by less value than limitLow
+		end
+		if math.ceil(offer/3) > limitHigh then
+			reduceHigh = offer - limitHigh -- reduce by limitHigh
+		else
+			reduceHigh = offer - math.ceil(offer/3) -- reduce by less value than limitHigh
+		end
+
 		form:AddOption(l.MAKE_OFFER_OF_POSITION_ON_SHIP_FOR_STATED_AMOUNT,1)
-		form:AddOption(l.SUGGEST_NEW_WEEKLY_WAGE_OF_N:interp({newAmount=Format.Money(checkOffer(offer*2))}),2)
-		form:AddOption(l.SUGGEST_NEW_WEEKLY_WAGE_OF_N:interp({newAmount=Format.Money(checkOffer(offer+5))}),3)
-		form:AddOption(l.SUGGEST_NEW_WEEKLY_WAGE_OF_N:interp({newAmount=Format.Money(checkOffer(offer-5))}),4)
-		form:AddOption(l.SUGGEST_NEW_WEEKLY_WAGE_OF_N:interp({newAmount=Format.Money(checkOffer(math.floor(offer/2)))}),5)
+		form:AddOption(l.SUGGEST_NEW_WEEKLY_WAGE_OF_N:interp({newAmount=Format.Money(raiseHigh)}),2)
+		if raiseHigh ~= raiseLow then -- hide button if value of raise wages is duplicated
+			form:AddOption(l.SUGGEST_NEW_WEEKLY_WAGE_OF_N:interp({newAmount=Format.Money(raiseLow)}),3)
+		end
+		if reduceHigh ~= reduceLow then -- hide button if value of reduce wages is duplicated
+			form:AddOption(l.SUGGEST_NEW_WEEKLY_WAGE_OF_N:interp({newAmount=Format.Money(reduceLow)}),4)
+		end
+		if reduceHigh > 0 then -- hide button if value of reduce wage is $0
+			form:AddOption(l.SUGGEST_NEW_WEEKLY_WAGE_OF_N:interp({newAmount=Format.Money(reduceHigh)}),5)
+		end
 		form:AddOption(l.ASK_CANDIDATE_TO_SIT_A_TEST,6)
 		form:AddOption(l.GO_BACK, 0)
 	end
@@ -270,10 +298,15 @@ local onChat = function (form,ref,option)
 						if v == candidate then table.remove(nonPersistentCharactersForCrew[station],k) end
 					end
 				else
+					-- No free cabin - candidates are disappointed, but offer value is accepted.
+					candidate.estimatedWage = offer
+					candidate.playerRelationship = candidate.playerRelationship - 1
 					form:SetMessage(l.THERE_DOESNT_SEEM_TO_BE_SPACE_FOR_ME_ON_BOARD)
 					form:AddOption(l.GO_BACK, 0)
 				end
 			else
+				-- Candidates hate unattractive offer.
+				candidate.playerRelationship = candidate.playerRelationship - 1
 				form:SetMessage(l.IM_SORRY_YOUR_OFFER_ISNT_ATTRACTIVE_TO_ME)
 				form:AddOption(l.GO_BACK, 0)
 				form:AddOption(l.HANG_UP, -1)
@@ -283,26 +316,27 @@ local onChat = function (form,ref,option)
 		end
 
 		if option == 2 then
-			-- Player suggested doubling the offer
+			-- Player suggested raise the offer by High value
 			candidate.playerRelationship = candidate.playerRelationship + 5
-			offer = checkOffer(offer * 2)
-			candidate.estimatedWage = offer -- They'll now re-evaluate themself
+			offer = raiseHigh
+			candidate.estimatedWage = offer
 			showCandidateDetails(l.THATS_EXTREMELY_GENEROUS_OF_YOU)
 		end
 
 		if option == 3 then
-			-- Player suggested an extra $5
+			-- Player suggested raise the offer by Low value
 			candidate.playerRelationship = candidate.playerRelationship + 1
-			offer = checkOffer(offer + 5)
-			candidate.estimatedWage = offer -- They'll now re-evaluate themself
+			offer = raiseLow
+			candidate.estimatedWage = offer
 			showCandidateDetails(l.THAT_CERTAINLY_MAKES_THIS_OFFER_LOOK_BETTER)
 		end
 
 		if option == 4 then
-			-- Player suggested $5 less
+			-- Player suggested reduce the offer by Low value
 			candidate.playerRelationship = candidate.playerRelationship - 1
 			if candidate:TestRoll('playerRelationship') then
-				offer = checkOffer(offer - 5)
+				candidate.estimatedWage = offer
+				offer = reduceLow
 				showCandidateDetails(l.OK_I_SUPPOSE_THATS_ALL_RIGHT)
 			else
 				showCandidateDetails(l.IM_SORRY_IM_NOT_PREPARED_TO_GO_ANY_LOWER)
@@ -310,10 +344,11 @@ local onChat = function (form,ref,option)
 		end
 
 		if option == 5 then
-			-- Player suggested halving the offer
+			-- Player suggested reduce the offer by High value
 			candidate.playerRelationship = candidate.playerRelationship - 5
 			if candidate:TestRoll('playerRelationship') then
-				offer = checkOffer(math.floor(offer / 2))
+				candidate.estimatedWage = offer
+				offer = reduceHigh
 				showCandidateDetails(l.OK_I_SUPPOSE_THATS_ALL_RIGHT)
 			else
 				showCandidateDetails(l.IM_SORRY_IM_NOT_PREPARED_TO_GO_ANY_LOWER)
