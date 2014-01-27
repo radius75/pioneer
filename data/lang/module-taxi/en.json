@@ -535,6 +535,10 @@
       "description" : "",
       "message" : "You're not going to dock today!"
    },
+   "SET_AS_HYPERSPACE_TARGET" : {
+      "description" : "",
+      "message" : "Set as Hyperspace Target"
+   },
    "TAXI" : {
       "description" : "",
       "message" : "Taxi"

@@ -16,6 +16,7 @@ local EquipDef = import("EquipDef")
 local ShipDef = import("ShipDef")
 local Ship = import("Ship")
 local utils = import("utils")
+local SmallLabeledButton = import("ui/SmallLabeledButton")
 
 local InfoFace = import("ui/InfoFace")
 
@@ -421,6 +422,17 @@ end
 
 local onClick = function (mission)
 	local dist = Game.system and string.format("%.2f", Game.system:DistanceTo(mission.location)) or "???"
+
+	local setHyperspaceButton = SmallLabeledButton.New(l.SET_AS_HYPERSPACE_TARGET, 'SMALL')
+	setHyperspaceButton.button.onClick:Connect(function ()
+		if Game.player:GetHyperspaceTarget() ~= mission.location:GetStarSystem().path then
+			Game.player:SetHyperspaceTarget(mission.location:GetStarSystem().path)
+		end
+		end)
+	if Game.player.flightState == 'HYPERSPACE' or Game.player:GetHyperspaceDetails(mission.location) == 'CURRENT_SYSTEM' or table.unpack(Game.player:GetEquip("ENGINE")) == 'NONE' then
+		setHyperspaceButton.widget:Disable()
+	end
+
 	return ui:Grid(2,1)
 		:SetColumn(0,{ui:VBox(10):PackEnd({ui:MultiLineText((flavours[mission.flavour].introtext):interp({
 														name   = mission.client.name,
@@ -452,6 +464,12 @@ local onClick = function (mission)
 											:SetColumn(1, {
 												ui:VBox():PackEnd({
 													ui:MultiLineText(mission.location:GetStarSystem().name.." ("..mission.location.sectorX..","..mission.location.sectorY..","..mission.location.sectorZ..")")
+												})
+											}),
+										ui:Grid(2,1)
+											:SetColumn(1, {
+												ui:VBox():PackEnd({
+													setHyperspaceButton.widget
 												})
 											}),
 										ui:Grid(2,1)

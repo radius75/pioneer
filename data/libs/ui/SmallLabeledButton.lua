@@ -7,11 +7,12 @@ local ui = Engine.ui
 
 local SmallLabeledButton = {}
 
-function SmallLabeledButton.New (text)
+function SmallLabeledButton.New (text, font)
 	local self = {
 		button = ui:SmallButton(),
 		label  = ui:Label(text),
 	}
+	if font and type(font) == "string" then self.label = ui:Label(text):SetFont(font) end
 	self.widget = ui:HBox(10):PackEnd({ self.button, self.label })
 
 	setmetatable(self, {

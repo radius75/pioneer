@@ -163,6 +163,10 @@
       "description" : "",
       "message" : "Return here on the completion of the contract and you will be paid."
    },
+   "SET_AS_HYPERSPACE_TARGET" : {
+      "description" : "",
+      "message" : "Set as Hyperspace Target"
+   },
    "SHIP" : {
       "description" : "",
       "message" : "Ship:"
