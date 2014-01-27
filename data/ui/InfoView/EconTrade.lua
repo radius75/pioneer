@@ -108,6 +108,9 @@ local econTrade = function ()
 							updateCargoListWidget()
 							cargoListWidget:SetInnerWidget(updateCargoListWidget())
 						end)
+						if Game.player.flightState ~= "FLYING" then
+							jettisonButton.widget:Disable()
+						end
 						cargolistbox:PackEnd(ui:Grid(rowspec,1):SetRow(0, {
 							ui:Align("LEFT", ui:Image("icons/goods/"..equipIcon[type]..".png") or ""),
 							ui:Label(et.name),
