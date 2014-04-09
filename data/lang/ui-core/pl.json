@@ -167,6 +167,10 @@
       "description" : "",
       "message" : "Nie można wczytać gry: "
    },
+   "CREDIBLE" : {
+      "description" : "For player reputation",
+      "message" : "Wiarygodny"
+   },
    "CREW_CABINS" : {
       "description" : "",
       "message" : "Kabiny załogi"
@@ -291,6 +295,14 @@
       "description" : "",
       "message" : "Wyjdź z gry"
    },
+   "EXPERIENCED" : {
+      "description" : "For player reputation",
+      "message" : "Doświadczony"
+   },
+   "EXPERT" : {
+      "description" : "For player reputation",
+      "message" : "Ekspert"
+   },
    "FAILED" : {
       "description" : "",
       "message" : "Nieukończona"
@@ -316,7 +328,7 @@
       "message" : "Dokładność fraktali"
    },
    "FREE" : {
-      "description" : "",
+      "description" : "Used in Ship Information view as in Capacity: 10t (5t free)",
       "message" : "wolne"
    },
    "FRONT_WEAPON" : {
@@ -423,6 +435,14 @@
       "description" : "",
       "message" : "Nieaktywna"
    },
+   "INCOMPETENT" : {
+      "description" : "For player reputation",
+      "message" : "Niekompetentny"
+   },
+   "INEXPERIENCED" : {
+      "description" : "For player reputation",
+      "message" : "Niedoświadczony"
+   },
    "INVERT_MOUSE_Y" : {
       "description" : "",
       "message" : "Odwróć Oś Y"
@@ -458,6 +478,18 @@
    "LANGUAGE_RESTART_GAME_TO_APPLY" : {
       "description" : "",
       "message" : "Język (wymagany restart)"
+   },
+   "LAUNCH_PERMISSION_DENIED_BUSY" : {
+      "description" : "",
+      "message" : "Brak pozwolenia na lądowanie: doki zajęte."
+   },
+   "LAUNCH_PERMISSION_DENIED_CREW" : {
+      "description" : "",
+      "message" : "Brak pozwolenia na lądowanie: brak wystarczającej ilości załogi by poprowadzić ten statek."
+   },
+   "LAUNCH_PERMISSION_DENIED_FINED" : {
+      "description" : "",
+      "message" : "Brak pozwolenia na lądowanie: zalegasz z opłatą grzywny."
    },
    "LEGAL_STATUS" : {
       "description" : "",
@@ -528,12 +560,20 @@
       "message" : "Masa"
    },
    "MASTER" : {
-      "description" : "",
+      "description" : "For player reputation",
+      "message" : "Mistrz"
+   },
+   "MASTER_VOL" : {
+      "description" : "Master sound in settings option",
       "message" : "Głośność:"
    },
    "MAX" : {
       "description" : "",
       "message" : "maks."
+   },
+   "MAXIMUM_CREW" : {
+      "description" : "",
+      "message" : "Maksymalna ilość załogi"
    },
    "MEDIUM" : {
       "description" : "",
@@ -574,6 +614,10 @@
    "MINIMUM_CREW" : {
       "description" : "",
       "message" : "Minimalna ilość załogi"
+   },
+   "MISSILE_MOUNTS" : {
+      "description" : "",
+      "message" : "Mocowania rakiet"
    },
    "MISSIONS" : {
       "description" : "",
@@ -627,6 +671,14 @@
       "description" : "",
       "message" : "Następna wypłata"
    },
+   "NO" : {
+      "description" : "Negative answer to a question",
+      "message" : "Nie"
+   },
+   "NOBODY" : {
+      "description" : "For player reputation",
+      "message" : "Nikt"
+   },
    "NONE" : {
       "description" : "",
       "message" : "Brak"
@@ -638,6 +690,10 @@
    "NOT_ENOUGH_ALLOY_TO_ATTEMPT_A_REPAIR" : {
       "description" : "",
       "message" : "{alloy} - jest zbyt mało by rozpocząć naprawę."
+   },
+   "NOT_SUPPORTED_ON_THIS_SHIP" : {
+      "description" : "",
+      "message" : "{equipment} - nie można zainstalować w tym modelu statku"
    },
    "NO_MISSIONS" : {
       "description" : "",
@@ -735,9 +791,17 @@
       "description" : "",
       "message" : "Cena"
    },
+   "PROFESSIONAL" : {
+      "description" : "For player reputation",
+      "message" : "Profesjonalista"
+   },
    "QUALIFICATION_SCORES" : {
       "description" : "",
       "message" : "Posiadane kwalifikacje"
+   },
+   "QUICKLOAD" : {
+      "description" : "",
+      "message" : "Wczytanie szybkiego zapisu"
    },
    "QUIT" : {
       "description" : "",
@@ -759,13 +823,29 @@
       "description" : "",
       "message" : "Zatankuj"
    },
+   "REFUEL_FULL" : {
+      "description" : "",
+      "message" : "Refuel full"
+   },
+   "RELIABLE" : {
+      "description" : "For player reputation",
+      "message" : "Niezawodny"
+   },
    "REPAIR_X_HULL_DAMAGE_FOR_X" : {
       "description" : "",
       "message" : "Naprawa {damage}% uszkodzonego kadłuba za {price}"
    },
+   "REPUTATION" : {
+      "description" : "",
+      "message" : "Reputacja"
+   },
    "REQUEST_LAUNCH" : {
       "description" : "",
       "message" : "Pozwolenie na start"
+   },
+   "RETURN_TO_GAME" : {
+      "description" : "",
+      "message" : "Powrót do gry"
    },
    "RETURN_TO_MENU" : {
       "description" : "",
@@ -819,9 +899,13 @@
       "description" : "",
       "message" : "Twój statek jest w doskonałym stanie."
    },
+   "SHIP_IS_FULLY_EQUIPPED" : {
+      "description" : "",
+      "message" : "Twój statek jest w pełni wyposażony."
+   },
    "SHIP_IS_FULLY_LADEN" : {
       "description" : "",
-      "message" : "Twój statek jest w pełni załadowany"
+      "message" : "Twój statek jest zbyt obciążony"
    },
    "SHIP_MARKET" : {
       "description" : "",
@@ -875,6 +959,10 @@
       "description" : "",
       "message" : "Mężczyzna/Kobieta"
    },
+   "TOO_SMALL_FOR_CURRENT_CREW" : {
+      "description" : "",
+      "message" : "Statek jest zbyt mały dla obecnej ilości załogi."
+   },
    "TOTAL" : {
       "description" : "",
       "message" : "Łącznie: "
@@ -887,6 +975,10 @@
       "description" : "",
       "message" : "Przemyt"
    },
+   "TRUSTWORTHY" : {
+      "description" : "For player reputation",
+      "message" : "Godny zaufania"
+   },
    "TYPE" : {
       "description" : "",
       "message" : "Typ"
@@ -894,6 +986,10 @@
    "UNLAWFUL_WEAPONS_DISCHARGE" : {
       "description" : "",
       "message" : "Bezprawne użycie broni"
+   },
+   "UNRELIABLE" : {
+      "description" : "",
+      "message" : "Nierzetelny"
    },
    "UP_ACCEL" : {
       "description" : "",
@@ -929,7 +1025,7 @@
    },
    "WEIGHT_EMPTY" : {
       "description" : "",
-      "message" : "Masa minimalna:"
+      "message" : "Masa własna"
    },
    "WEIGHT_FULLY_LOADED" : {
       "description" : "",
@@ -942,6 +1038,10 @@
    "WE_HAVE_NO_BUSINESS_WITH_YOU" : {
       "description" : "",
       "message" : "W tej chwili nie mamy do ciebie żadnych spraw."
+   },
+   "YES" : {
+      "description" : "Positive answer to a question",
+      "message" : "Tak"
    },
    "YOURE_GOING_TO_REGRET_SACKING_ME" : {
       "description" : "",

@@ -7,7 +7,6 @@ local Game = import("Game")
 local Event = import("Event")
 local Format = import("Format")
 local Lang = import("Lang")
-local Comms = import("Comms")
 local ShipDef = import("ShipDef")
 
 local Model = import("SceneGraph.Model")
@@ -15,6 +14,7 @@ local ModelSkin = import("SceneGraph.ModelSkin")
 local ModelSpinner = import("UI.Game.ModelSpinner")
 
 local SmallLabeledButton = import("ui/SmallLabeledButton")
+local MessageBox = import("ui/MessageBox")
 
 local ui = Engine.ui
 
@@ -71,7 +71,7 @@ local function manufacturerIcon (manufacturer)
 end
 
 local function tradeInValue (def)
-	return def.basePrice * 0.5
+	return math.ceil(def.basePrice * 0.5)
 end
 
 local function buyShip (sos)
@@ -80,10 +80,19 @@ local function buyShip (sos)
 	local def = sos.def
 
 	local cost = def.basePrice - tradeInValue(ShipDef[Game.player.shipId])
+	if math.floor(cost) ~= cost then
+		error("Ship price non-integer value.")
+	end
 	if player:GetMoney() < cost then
-		Comms.Message(l.YOU_NOT_ENOUGH_MONEY)
+		MessageBox.Message(l.YOU_NOT_ENOUGH_MONEY)
 		return
 	end
+
+	if player:CrewNumber() > def.maxCrew then
+		MessageBox.Message(l.TOO_SMALL_FOR_CURRENT_CREW)
+		return
+    end
+
 	player:AddMoney(-cost)
 
 	station:ReplaceShipOnSale(sos, {
@@ -104,6 +113,15 @@ local function buyShip (sos)
 		ui:MultiLineText(l.THANKS_AND_REMEMBER_TO_BUY_FUEL)
 	)
 
+end
+
+local yes_no = function (binary)
+	if binary == 1 then
+		return l.YES
+	elseif binary == 0 then
+		return l.NO
+	else error("argument to yes_no not 0 or 1")
+	end
 end
 
 local currentShipOnSale
@@ -136,8 +154,8 @@ shipTable.onRowClicked:Connect(function (row)
 				ui:Expand("HORIZONTAL", ui:Align("RIGHT", manufacturerIcon(def.manufacturer))),
 			}),
 			ui:HBox(20):PackEnd({
-				l.PRICE..": "..Format.Money(def.basePrice),
-				l.AFTER_TRADE_IN..": "..Format.Money(def.basePrice - tradeInValue(ShipDef[Game.player.shipId])),
+				l.PRICE..": "..Format.Money(def.basePrice, false),
+				l.AFTER_TRADE_IN..": "..Format.Money(def.basePrice - tradeInValue(ShipDef[Game.player.shipId]), false),
 				ui:Expand("HORIZONTAL", ui:Align("RIGHT", buyButton)),
 			}),
 			ModelSpinner.New(ui, def.modelName, currentShipOnSale.skin, currentShipOnSale.pattern),
@@ -153,14 +171,20 @@ shipTable.onRowClicked:Connect(function (row)
 							:AddRow({l.REVERSE_ACCEL_EMPTY, Format.AccelG(reverseAccelEmpty)})
 							:AddRow({l.REVERSE_ACCEL_FULL,  Format.AccelG(reverseAccelFull)})
 							:AddRow({l.DELTA_V_EMPTY, string.format("%d km/s", deltav / 1000)})
-							:AddRow({l.DELTA_V_FULL, string.format("%d km/s", deltav_f / 1000)}),
+							:AddRow({l.DELTA_V_FULL, string.format("%d km/s", deltav_f / 1000)})
+							:AddRow({l.DELTA_V_MAX, string.format("%d km/s", deltav_m / 1000)}),
 						ui:Table()
 							:SetColumnSpacing(5)
 							:AddRow({l.WEIGHT_EMPTY,        Format.MassTonnes(def.hullMass)})
 							:AddRow({l.CAPACITY,            Format.MassTonnes(def.capacity)})
+							:AddRow({l.MINIMUM_CREW,        def.minCrew})
+							:AddRow({l.MAXIMUM_CREW,        def.maxCrew})
 							:AddRow({l.WEIGHT_FULLY_LOADED, Format.MassTonnes(def.hullMass+def.capacity+def.fuelTankMass)})
 							:AddRow({l.FUEL_WEIGHT,         Format.MassTonnes(def.fuelTankMass)})
-							:AddRow({l.DELTA_V_MAX, string.format("%d km/s", deltav_m / 1000)})
+							:AddRow({l.MISSILE_MOUNTS,      def.equipSlotCapacity["MISSILE"]})
+							:AddRow({lcore.ATMOSPHERIC_SHIELDING, yes_no(def.equipSlotCapacity["ATMOSHIELD"])})
+							:AddRow({lcore.FUEL_SCOOP,            yes_no(def.equipSlotCapacity["FUELSCOOP"])})
+							:AddRow({lcore.CARGO_SCOOP,           yes_no(def.equipSlotCapacity["CARGOSCOOP"])})
 					})
 			),
 		})
@@ -180,7 +204,7 @@ local function updateStation (station, shipsOnSale)
 			seen = true
 		end
 		local def = sos.def
-		shipTable:AddRow({shipClassIcon(def.shipClass), def.name, Format.Money(def.basePrice), def.capacity.."t"})
+		shipTable:AddRow({shipClassIcon(def.shipClass), def.name, Format.Money(def.basePrice,false), def.capacity.."t"})
 	end
 
 	if currentShipOnSale then

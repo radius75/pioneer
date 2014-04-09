@@ -158,9 +158,13 @@ local econTrade = function ()
 
 	-- Define the refuel button
 	local refuelButton = SmallLabeledButton.New(l.REFUEL)
+	local refuelMaxButton = SmallLabeledButton.New(l.REFUEL_FULL)
 
 	local refuelButtonRefresh = function ()
-		if Game.player.fuel == 100 or Game.player:GetEquipCount('CARGO', 'WATER') == 0 then refuelButton.widget:Disable() end
+		if Game.player.fuel == 100 or Game.player:GetEquipCount('CARGO', 'HYDROGEN') == 0 then
+			refuelButton.widget:Disable()
+			refuelMaxButton.widget:Disable()
+		end
 		local fuel_percent = Game.player.fuel/100
 		fuelGauge.gauge:SetValue(fuel_percent)
 		fuelGauge.label:SetValue(fuel_percent)
@@ -175,8 +179,17 @@ local econTrade = function ()
 
 		refuelButtonRefresh()
 	end
+	local refuelMax = function ()
+		repeat
+			Game.player:Refuel(1)
+		until Game.player.fuel == 100 or Game.player:GetEquipCount('CARGO', 'HYDROGEN') == 0
+		cargoListWidget:SetInnerWidget(updateCargoListWidget())
+
+		refuelButtonRefresh()
+	end
 
 	refuelButton.button.onClick:Connect(refuel)
+	refuelMaxButton.button.onClick:Connect(refuelMax)
 
 	return ui:Expand():SetInnerWidget(
 		ui:Grid(2,1)
@@ -212,7 +225,10 @@ local econTrade = function ()
 								fuelGauge,
 							}),
 							nil,
-							refuelButton.widget,
+							ui:VBox(5):PackEnd({
+								refuelButton.widget,
+								refuelMaxButton.widget,
+							}),
 						})
 					})
 				)

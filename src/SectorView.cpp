@@ -43,7 +43,7 @@ enum DetailSelection {
 static const float ZOOM_SPEED = 15;
 static const float WHEEL_SENSITIVITY = .03f;		// Should be a variable in user settings.
 
-SectorView::SectorView()
+SectorView::SectorView() : UIView()
 {
 	InitDefaults();
 
@@ -65,24 +65,22 @@ SectorView::SectorView()
 
 	GotoSystem(m_current);
 	m_pos = m_posMovingTo;
-	Sector::cache.SetPosition(m_pos);
 
 	m_matchTargetToSelection   = true;
-	m_selectionFollowsMovement = true;
+	m_automaticSystemSelection = true;
 	m_detailBoxVisible         = DETAILBOX_INFO;
 	m_toggledFaction           = false;
 
 	InitObject();
 }
 
-SectorView::SectorView(Serializer::Reader &rd)
+SectorView::SectorView(Serializer::Reader &rd) : UIView()
 {
 	InitDefaults();
 
 	m_pos.x = m_posMovingTo.x = rd.Float();
 	m_pos.y = m_posMovingTo.y = rd.Float();
 	m_pos.z = m_posMovingTo.z = rd.Float();
-	Sector::cache.SetPosition(m_pos);
 	m_rotX = m_rotXMovingTo = rd.Float();
 	m_rotZ = m_rotZMovingTo = rd.Float();
 	m_zoom = m_zoomMovingTo = rd.Float();
@@ -94,7 +92,7 @@ SectorView::SectorView(Serializer::Reader &rd)
 	m_selected = SystemPath::Unserialize(rd);
 	m_hyperspaceTarget = SystemPath::Unserialize(rd);
 	m_matchTargetToSelection = rd.Bool();
-	m_selectionFollowsMovement = rd.Bool();
+	m_automaticSystemSelection = rd.Bool();
 	m_detailBoxVisible = rd.Byte();
 
 	InitObject();
@@ -111,6 +109,14 @@ void SectorView::InitDefaults()
 
 	m_secPosFar = vector3f(INT_MAX, INT_MAX, INT_MAX);
 	m_radiusFar = 0;
+	m_cacheXMin = 0;
+	m_cacheXMax = 0;
+	m_cacheYMin = 0;
+	m_cacheYMax = 0;
+	m_cacheYMin = 0;
+	m_cacheYMax = 0;
+
+	m_sectorCache = Sector::cache.NewSlaveCache();
 }
 
 void SectorView::InitObject()
@@ -119,6 +125,8 @@ void SectorView::InitObject()
 
 	m_lineVerts.reset(new Graphics::VertexArray(Graphics::ATTRIB_POSITION, 500));
 	m_secLineVerts.reset(new Graphics::VertexArray(Graphics::ATTRIB_POSITION, 500));
+	m_starVerts.reset(new Graphics::VertexArray(
+		Graphics::ATTRIB_POSITION | Graphics::ATTRIB_DIFFUSE | Graphics::ATTRIB_UV0, 500));
 
 	Gui::Screen::PushFont("OverlayFont");
 	m_clickableLabels = new Gui::LabelSet();
@@ -144,12 +152,33 @@ void SectorView::InitObject()
 	m_zoomOutButton->SetRenderDimensions(30, 22);
 	Add(m_zoomOutButton, 732, 5);
 
-	Add(new Gui::Label(Lang::SEARCH), 650, 500);
+	Gui::Screen::PushFont("OverlayFont");
+
+	Add(new Gui::Label(Lang::SEARCH), 650, 470);
 	m_searchBox = new Gui::TextEntry();
 	m_searchBox->onKeyPress.connect(sigc::mem_fun(this, &SectorView::OnSearchBoxKeyPress));
-	Add(m_searchBox, 700, 500);
+	Add(m_searchBox, 700, 470);
 
-	m_disk.reset(new Graphics::Drawables::Disk(Pi::renderer, Color::WHITE, 0.2f));
+	m_statusLabel = new Gui::Label("");
+	Add(m_statusLabel, 650, 490);
+	Gui::Screen::PopFont();
+
+	Gui::Screen::PushFont("OverlayFont");
+
+	m_renderer = Pi::renderer; //XXX pass cleanly to all views constructors!
+
+	Graphics::RenderStateDesc rsd;
+	m_solidState = m_renderer->CreateRenderState(rsd);
+
+	rsd.blendMode = Graphics::BLEND_ALPHA;
+	rsd.depthWrite = false;
+	m_alphaBlendState = m_renderer->CreateRenderState(rsd);
+
+	Graphics::MaterialDescriptor bbMatDesc;
+	bbMatDesc.effect = Graphics::EFFECT_SPHEREIMPOSTOR;
+	m_starMaterial.Reset(m_renderer->CreateMaterial(bbMatDesc));
+
+	m_disk.reset(new Graphics::Drawables::Disk(m_renderer, m_solidState, Color::WHITE, 0.2f));
 
 	m_infoBox = new Gui::VBox();
 	m_infoBox->SetTransparency(false);
@@ -280,6 +309,16 @@ void SectorView::InitObject()
 	label = (new Gui::Label(Lang::DRAW_UNINHABITED_LABELS))->Color(255, 255, 255);
 	hbox->PackEnd(label);
 	filterBox->PackEnd(hbox);
+	// 2.4 Selection follows movement
+	hbox = new Gui::HBox();
+	hbox->SetSpacing(5.0f);
+	m_automaticSystemSelectionButton = (new Gui::ToggleButton());
+	m_automaticSystemSelectionButton->SetPressed(m_automaticSystemSelection);
+    m_automaticSystemSelectionButton->onChange.connect(sigc::mem_fun(this, &SectorView::OnAutomaticSystemSelectionChange));
+	hbox->PackEnd(m_automaticSystemSelectionButton);
+	label = (new Gui::Label(Lang::AUTOMATIC_SYSTEM_SELECTION))->Color(255, 255, 255);
+	hbox->PackEnd(label);
+	filterBox->PackEnd(hbox);
 
 	m_infoBox->PackEnd(filterBox);
 
@@ -319,7 +358,7 @@ void SectorView::Save(Serializer::Writer &wr)
 	m_selected.Serialize(wr);
 	m_hyperspaceTarget.Serialize(wr);
 	wr.Bool(m_matchTargetToSelection);
-	wr.Bool(m_selectionFollowsMovement);
+	wr.Bool(m_automaticSystemSelection);
 	wr.Byte(m_detailBoxVisible);
 }
 
@@ -349,7 +388,7 @@ void SectorView::OnSearchBoxKeyPress(const SDL_Keysym *keysym)
 	SystemPath bestMatch;
 	const std::string *bestMatchName = 0;
 
-	for (auto i = Sector::cache.Begin(); i != Sector::cache.End(); ++i)
+	for (auto i = m_sectorCache->Begin(); i != m_sectorCache->End(); ++i)
 
 		for (unsigned int systemIndex = 0; systemIndex < (*i).second->m_systems.size(); systemIndex++) {
 			const Sector::System *ss = &((*i).second->m_systems[systemIndex]);
@@ -363,7 +402,7 @@ void SectorView::OnSearchBoxKeyPress(const SDL_Keysym *keysym)
 					// exact match, take it and go
 					SystemPath path = (*i).first;
 					path.systemIndex = systemIndex;
-					Pi::cpan->MsgLog()->Message("", stringf(Lang::EXACT_MATCH_X, formatarg("system", ss->name)));
+					m_statusLabel->SetText(stringf(Lang::EXACT_MATCH_X, formatarg("system", ss->name)));
 					GotoSystem(path);
 					return;
 				}
@@ -398,12 +437,12 @@ void SectorView::OnSearchBoxKeyPress(const SDL_Keysym *keysym)
 		}
 
 	if (gotMatch) {
-		Pi::cpan->MsgLog()->Message("", stringf(Lang::NOT_FOUND_BEST_MATCH_X, formatarg("system", *bestMatchName)));
+		m_statusLabel->SetText(stringf(Lang::NOT_FOUND_BEST_MATCH_X, formatarg("system", *bestMatchName)));
 		GotoSystem(bestMatch);
 	}
 
 	else
-		Pi::cpan->MsgLog()->Message("", Lang::NOT_FOUND);
+		m_statusLabel->SetText(Lang::NOT_FOUND);
 }
 
 #define FFRAC(_x)	((_x)-floor(_x))
@@ -415,12 +454,13 @@ void SectorView::Draw3D()
 	m_lineVerts->Clear();
 	m_secLineVerts->Clear();
 	m_clickableLabels->Clear();
+	m_starVerts->Clear();
 
 	if (m_zoomClamped <= FAR_THRESHOLD) m_renderer->SetPerspectiveProjection(40.f, m_renderer->GetDisplayAspect(), 1.f, 300.f);
 	else                                m_renderer->SetPerspectiveProjection(40.f, m_renderer->GetDisplayAspect(), 1.f, 600.f);
 
 	matrix4x4f modelview = matrix4x4f::Identity();
-	m_renderer->SetDepthWrite(true);
+
 	m_renderer->ClearScreen();
 
 	m_sectorLabel->SetText(stringf(Lang::SECTOR_X_Y_Z,
@@ -447,24 +487,27 @@ void SectorView::Draw3D()
 	modelview.Translate(-FFRAC(m_pos.x)*Sector::SIZE, -FFRAC(m_pos.y)*Sector::SIZE, -FFRAC(m_pos.z)*Sector::SIZE);
 	m_renderer->SetTransform(modelview);
 
-	m_renderer->SetBlendMode(BLEND_ALPHA);
-
 	if (m_zoomClamped <= FAR_THRESHOLD)
 		DrawNearSectors(modelview);
 	else
 		DrawFarSectors(modelview);
 
-	//draw sector legs in one go
 	m_renderer->SetTransform(matrix4x4f::Identity());
+
+	//draw star billboards in one go
+	m_renderer->SetAmbientColor(Color(30));
+	m_renderer->DrawTriangles(m_starVerts.get(), m_solidState, m_starMaterial.Get());
+
+	//draw sector legs in one go
 	if (m_lineVerts->GetNumVerts() > 2)
-		m_renderer->DrawLines(m_lineVerts->GetNumVerts(), &m_lineVerts->position[0], &m_lineVerts->diffuse[0]);
+		m_renderer->DrawLines(m_lineVerts->GetNumVerts(), &m_lineVerts->position[0], &m_lineVerts->diffuse[0], m_alphaBlendState);
 
 	if (m_secLineVerts->GetNumVerts() > 2)
-		m_renderer->DrawLines(m_secLineVerts->GetNumVerts(), &m_secLineVerts->position[0], &m_secLineVerts->diffuse[0]);
+		m_renderer->DrawLines(m_secLineVerts->GetNumVerts(), &m_secLineVerts->position[0], &m_secLineVerts->diffuse[0], m_alphaBlendState);
 
 	UpdateFactionToggles();
 
-	m_renderer->SetBlendMode(BLEND_SOLID);
+	UIView::Draw3D();
 }
 
 void SectorView::SetHyperspaceTarget(const SystemPath &path)
@@ -495,7 +538,7 @@ void SectorView::ResetHyperspaceTarget()
 	m_hyperspaceTarget = m_selected;
 	FloatHyperspaceTarget();
 
-	if (old != m_hyperspaceTarget) {
+	if (!old.IsSameSystem(m_hyperspaceTarget)) {
 		onHyperspaceTargetChanged.emit();
 		UpdateDistanceLabelAndLine(m_secondDistance, m_selected, m_hyperspaceTarget);
 		UpdateSystemLabels(m_targetSystemLabels, m_hyperspaceTarget);
@@ -511,13 +554,12 @@ void SectorView::GotoSector(const SystemPath &path)
 	// for performance don't animate the travel if we're Far Zoomed
 	if (m_zoomClamped > FAR_THRESHOLD) {
 		m_pos = m_posMovingTo;
-		Sector::cache.SetPosition(m_pos);
 	}
 }
 
 void SectorView::GotoSystem(const SystemPath &path)
 {
-	Sector* ps = Sector::cache.GetCached(path);
+	RefCountedPtr<Sector> ps = GetCached(path);
 	const vector3f &p = ps->m_systems[path.systemIndex].p;
 	m_posMovingTo.x = path.sectorX + p.x/Sector::SIZE;
 	m_posMovingTo.y = path.sectorY + p.y/Sector::SIZE;
@@ -526,11 +568,10 @@ void SectorView::GotoSystem(const SystemPath &path)
 	// for performance don't animate the travel if we're Far Zoomed
 	if (m_zoomClamped > FAR_THRESHOLD) {
 		m_pos = m_posMovingTo;
-		Sector::cache.SetPosition(m_pos);
 	}
 }
 
-void SectorView::SetSelectedSystem(const SystemPath &path)
+void SectorView::SetSelected(const SystemPath &path)
 {
     m_selected = path;
 
@@ -546,13 +587,30 @@ void SectorView::SetSelectedSystem(const SystemPath &path)
 
 void SectorView::OnClickSystem(const SystemPath &path)
 {
-	if (m_selectionFollowsMovement)
-		GotoSystem(path);
-	else
-		SetSelectedSystem(path);
+	if (path.IsSameSystem(m_selected)) {
+		RefCountedPtr<StarSystem> system = StarSystemCache::GetCached(path);
+		if (system->GetNumStars() > 1 && m_selected.IsBodyPath()) {
+			int i;
+			for (i = 0; i < system->GetNumStars(); ++i)
+				if (system->GetStars()[i]->GetPath() == m_selected) break;
+			if (i >= system->GetNumStars() - 1)
+				SetSelected(system->GetStars()[0]->GetPath());
+			else
+				SetSelected(system->GetStars()[i+1]->GetPath());
+		} else {
+			SetSelected(system->GetStars()[0]->GetPath());
+		}
+	} else {
+		if (m_automaticSystemSelection) {
+			GotoSystem(path);
+		} else {
+			RefCountedPtr<StarSystem> system = StarSystemCache::GetCached(path);
+			SetSelected(system->GetStars()[0]->GetPath());
+		}
+	}
 }
 
-void SectorView::PutSystemLabels(Sector *sec, const vector3f &origin, int drawRadius)
+void SectorView::PutSystemLabels(RefCountedPtr<Sector> sec, const vector3f &origin, int drawRadius)
 {
 	PROFILE_SCOPED()
 	Uint32 sysIdx = 0;
@@ -569,7 +627,7 @@ void SectorView::PutSystemLabels(Sector *sec, const vector3f &origin, int drawRa
 		if (m_hiddenFactions.find((*sys).faction) != m_hiddenFactions.end() && can_skip) continue;
 
 		// determine if system in hyperjump range or not
-		Sector *playerSec = Sector::cache.GetCached(m_current);
+		RefCountedPtr<const Sector> playerSec = GetCached(m_current);
 		float dist = Sector::DistanceBetween(sec, sysIdx, playerSec, m_current.systemIndex);
 		bool inRange = dist <= m_playerHyperspaceRange;
 
@@ -606,7 +664,7 @@ void SectorView::PutFactionLabels(const vector3f &origin)
 	for (std::set<Faction*>::iterator it = m_visibleFactions.begin(); it != m_visibleFactions.end(); ++it) {
 		if ((*it)->hasHomeworld && m_hiddenFactions.find((*it)) == m_hiddenFactions.end()) {
 
-			Sector::System sys = Sector::cache.GetCached((*it)->homeworld)->m_systems[(*it)->homeworld.systemIndex];
+			Sector::System sys = GetCached((*it)->homeworld)->m_systems[(*it)->homeworld.systemIndex];
 			if ((m_pos*Sector::SIZE - sys.FullPosition()).Length() > (m_zoomClamped/FAR_THRESHOLD )*OUTER_RADIUS) continue;
 
 			vector3d pos;
@@ -621,6 +679,7 @@ void SectorView::PutFactionLabels(const vector3f &origin)
 
 				if (!m_material) m_material.Reset(m_renderer->CreateMaterial(Graphics::MaterialDescriptor()));
 
+				auto renderState = Gui::Screen::alphaBlendState;
 				{
 					Graphics::VertexArray va(Graphics::ATTRIB_POSITION);
 					va.Add(vector3f(pos.x - 5.f,              pos.y - 5.f,               0));
@@ -628,7 +687,7 @@ void SectorView::PutFactionLabels(const vector3f &origin)
 					va.Add(vector3f(pos.x + labelWidth + 5.f, pos.y - 5.f,               0));
 					va.Add(vector3f(pos.x + labelWidth + 5.f, pos.y - 5.f + labelHeight, 0));
 					m_material->diffuse = Color(13, 13, 31, 166);
-					m_renderer->DrawTriangles(&va, m_material.Get(), Graphics::TRIANGLE_STRIP);
+					m_renderer->DrawTriangles(&va, renderState, m_material.Get(), Graphics::TRIANGLE_STRIP);
 				}
 
 				{
@@ -638,7 +697,7 @@ void SectorView::PutFactionLabels(const vector3f &origin)
 					va.Add(vector3f(pos.x,       pos.y - 8.f, 0));
 					va.Add(vector3f(pos.x + 8.f, pos.y,       0));
 					m_material->diffuse = labelColor;
-					m_renderer->DrawTriangles(&va, m_material.Get(), Graphics::TRIANGLE_STRIP);
+					m_renderer->DrawTriangles(&va, renderState, m_material.Get(), Graphics::TRIANGLE_STRIP);
 				}
 
 				if (labelColor.GetLuminance() > 191) labelColor.a = 204;    // luminance is sometimes a bit overly
@@ -649,6 +708,25 @@ void SectorView::PutFactionLabels(const vector3f &origin)
 	Gui::Screen::LeaveOrtho();
 }
 
+void SectorView::AddStarBillboard(const matrix4x4f &trans, const vector3f &pos, const Color &col, float size)
+{
+	const matrix3x3f rot = trans.GetOrient().Transpose();
+
+	const vector3f offset = trans * pos;
+
+	const vector3f rotv1 = rot * vector3f(size/2.f, -size/2.f, 0.0f);
+	const vector3f rotv2 = rot * vector3f(size/2.f, size/2.f, 0.0f);
+
+	Graphics::VertexArray &va = *m_starVerts;
+	va.Add(offset-rotv1, col, vector2f(0.f, 0.f)); //top left
+	va.Add(offset-rotv2, col, vector2f(0.f, 1.f)); //bottom left
+	va.Add(offset+rotv2, col, vector2f(1.f, 0.f)); //top right
+
+	va.Add(offset+rotv2, col, vector2f(1.f, 0.f)); //top right
+	va.Add(offset-rotv2, col, vector2f(0.f, 1.f)); //bottom left
+	va.Add(offset+rotv1, col, vector2f(1.f, 1.f)); //bottom right
+}
+
 void SectorView::UpdateDistanceLabelAndLine(DistanceIndicator &distance, const SystemPath &src, const SystemPath &dest)
 {
 	PROFILE_SCOPED()
@@ -656,8 +734,8 @@ void SectorView::UpdateDistanceLabelAndLine(DistanceIndicator &distance, const S
 	if (src.IsSameSystem(dest)) {
 		distance.label->SetText("");
 	} else {
-		Sector *sec = Sector::cache.GetCached(dest);
-		Sector *srcSec = Sector::cache.GetCached(src);
+		RefCountedPtr<const Sector> sec = GetCached(dest);
+		RefCountedPtr<const Sector> srcSec = GetCached(src);
 
 		char format[256];
 
@@ -705,7 +783,7 @@ void SectorView::UpdateSystemLabels(SystemLabels &labels, const SystemPath &path
 {
 	UpdateDistanceLabelAndLine(labels.distance, m_current, path);
 
-	RefCountedPtr<StarSystem> sys = StarSystem::GetCached(path);
+	RefCountedPtr<StarSystem> sys = StarSystemCache::GetCached(path);
 
 	std::string desc;
 	if (sys->GetNumStars() == 4) {
@@ -715,11 +793,15 @@ void SectorView::UpdateSystemLabels(SystemLabels &labels, const SystemPath &path
 	} else if (sys->GetNumStars() == 2) {
 		desc = Lang::BINARY_SYSTEM;
 	} else {
-		desc = sys->rootBody->GetAstroDescription();
+		desc = sys->GetRootBody()->GetAstroDescription();
 	}
 	labels.starType->SetText(desc);
 
-	labels.systemName->SetText(sys->GetName());
+	if (path.IsBodyPath()) {
+		labels.systemName->SetText(sys->GetBodyByPath(path)->GetName());
+	} else {
+		labels.systemName->SetText(sys->GetName());
+	}
 	labels.sector->SetText(stringf("(%x,%y,%z)",
 		formatarg("x", int(path.sectorX)),
 		formatarg("y", int(path.sectorY)),
@@ -736,6 +818,10 @@ void SectorView::OnToggleFaction(Gui::ToggleButton* button, bool pressed, Factio
 	else         m_hiddenFactions.insert(faction);
 
 	m_toggledFaction = true;
+}
+
+void SectorView::OnAutomaticSystemSelectionChange(Gui::ToggleButton *b, bool pressed) {
+    m_automaticSystemSelection = pressed;
 }
 
 void SectorView::UpdateFactionToggles()
@@ -786,7 +872,7 @@ void SectorView::DrawNearSectors(const matrix4x4f& modelview)
 	PROFILE_SCOPED()
 	m_visibleFactions.clear();
 
-	const Sector *playerSec = Sector::cache.GetCached(m_current);
+	RefCountedPtr<const Sector> playerSec = GetCached(m_current);
 	const vector3f playerPos = Sector::SIZE * vector3f(float(m_current.sectorX), float(m_current.sectorY), float(m_current.sectorZ)) + playerSec->m_systems[m_current.systemIndex].p;
 
 	for (int sx = -DRAW_RAD; sx <= DRAW_RAD; sx++) {
@@ -800,14 +886,14 @@ void SectorView::DrawNearSectors(const matrix4x4f& modelview)
 
 	// ...then switch and do all the labels
 	const vector3f secOrigin = vector3f(int(floorf(m_pos.x)), int(floorf(m_pos.y)), int(floorf(m_pos.z)));
-	
+
 	m_renderer->SetTransform(modelview);
 	glDepthRange(0,1);
 	Gui::Screen::EnterOrtho();
 	for (int sx = -DRAW_RAD; sx <= DRAW_RAD; sx++) {
 		for (int sy = -DRAW_RAD; sy <= DRAW_RAD; sy++) {
 			for (int sz = -DRAW_RAD; sz <= DRAW_RAD; sz++) {
-				PutSystemLabels(Sector::cache.GetCached(SystemPath(sx + secOrigin.x, sy + secOrigin.y, sz + secOrigin.z)), Sector::SIZE * secOrigin, Sector::SIZE * DRAW_RAD);
+				PutSystemLabels(GetCached(SystemPath(sx + secOrigin.x, sy + secOrigin.y, sz + secOrigin.z)), Sector::SIZE * secOrigin, Sector::SIZE * DRAW_RAD);
 			}
 		}
 	}
@@ -818,7 +904,7 @@ void SectorView::DrawNearSector(const int sx, const int sy, const int sz, const 
 {
 	PROFILE_SCOPED()
 	m_renderer->SetTransform(trans);
-	Sector* ps = Sector::cache.GetCached(SystemPath(sx, sy, sz));
+	RefCountedPtr<Sector> ps = GetCached(SystemPath(sx, sy, sz));
 
 	int cz = int(floor(m_pos.z+0.5f));
 
@@ -863,7 +949,7 @@ void SectorView::DrawNearSector(const int sx, const int sy, const int sz, const 
 		if (m_hiddenFactions.find(i->faction) != m_hiddenFactions.end() && can_skip) continue;
 
 		// determine if system in hyperjump range or not
-		Sector *playerSec = Sector::cache.GetCached(m_current);
+		RefCountedPtr<const Sector> playerSec = GetCached(m_current);
 		float dist = Sector::DistanceBetween(ps, sysIdx, playerSec, m_current.systemIndex);
 		bool inRange = dist <= m_playerHyperspaceRange;
 
@@ -881,7 +967,7 @@ void SectorView::DrawNearSector(const int sx, const int sy, const int sz, const 
 			// Ideally, since this takes so f'ing long, it wants to be done as a threaded job but haven't written that yet.
 			if( (diff.x < 0.001f && diff.y < 0.001f && diff.z < 0.001f) ) {
 				SystemPath current = SystemPath(sx, sy, sz, sysIdx);
-				RefCountedPtr<StarSystem> pSS = StarSystem::GetCached(current);
+				RefCountedPtr<StarSystem> pSS = StarSystemCache::GetCached(current);
 				(*i).population = pSS->GetTotalPop();
 			}
 
@@ -918,26 +1004,26 @@ void SectorView::DrawNearSector(const int sx, const int sy, const int sz, const 
 			if (m_selected != m_current) {
 			    m_selectedLine.SetStart(vector3f(0.f, 0.f, 0.f));
 			    m_selectedLine.SetEnd(playerAbsPos - sysAbsPos);
-			    m_selectedLine.Draw(m_renderer);
+			    m_selectedLine.Draw(m_renderer, m_solidState);
 			} else {
 			    m_secondDistance.label->SetText("");
 			}
 			if (m_selected != m_hyperspaceTarget) {
-				Sector *hyperSec = Sector::cache.GetCached(m_hyperspaceTarget);
+				RefCountedPtr<Sector> hyperSec = GetCached(m_hyperspaceTarget);
 				const vector3f hyperAbsPos =
 					Sector::SIZE*vector3f(m_hyperspaceTarget.sectorX, m_hyperspaceTarget.sectorY, m_hyperspaceTarget.sectorZ)
 					+ hyperSec->m_systems[m_hyperspaceTarget.systemIndex].p;
 				if (m_selected != m_current) {
 				    m_secondLine.SetStart(vector3f(0.f, 0.f, 0.f));
 				    m_secondLine.SetEnd(hyperAbsPos - sysAbsPos);
-				    m_secondLine.Draw(m_renderer);
+				    m_secondLine.Draw(m_renderer, m_solidState);
 				}
 
 				if (m_hyperspaceTarget != m_current) {
 				    // FIXME: Draw when drawing hyperjump target or current system
 				    m_jumpLine.SetStart(hyperAbsPos - sysAbsPos);
 				    m_jumpLine.SetEnd(playerAbsPos - sysAbsPos);
-				    m_jumpLine.Draw(m_renderer);
+				    m_jumpLine.Draw(m_renderer, m_solidState);
 				}
 			} else {
 			    m_secondDistance.label->SetText("");
@@ -950,9 +1036,8 @@ void SectorView::DrawNearSector(const int sx, const int sy, const int sz, const 
 		systrans.Scale((StarSystem::starScale[(*i).starType[0]]));
 		m_renderer->SetTransform(systrans);
 
-		Uint8 *col = StarSystem::starColors[(*i).starType[0]];
-		m_disk->SetColor(Color(col[0], col[1], col[2]));
-		m_disk->Draw(m_renderer);
+		const Uint8 *col = StarSystem::starColors[(*i).starType[0]];
+		AddStarBillboard(systrans, vector3f(0.f), Color(col[0], col[1], col[2], 255), 0.5f);
 
 		// player location indicator
 		if (m_inSystem && bIsCurrentSystem) {
@@ -976,19 +1061,10 @@ void SectorView::DrawNearSector(const int sx, const int sy, const int sz, const 
 			m_disk->Draw(m_renderer);
 		}
 		if(bIsCurrentSystem && m_jumpSphere && m_playerHyperspaceRange>0.0f) {
-			// not sure I should do these here on when applying the material?
-			m_renderer->SetDepthWrite(false);
-			m_renderer->SetDepthTest(false);
-			m_renderer->SetBlendMode(BLEND_ALPHA);
-			
 			const matrix4x4f sphTrans = trans * matrix4x4f::Translation((*i).p.x, (*i).p.y, (*i).p.z);
 			m_renderer->SetTransform(sphTrans * matrix4x4f::ScaleMatrix(m_playerHyperspaceRange));
 			m_jumpSphere->Draw(m_renderer);
 			m_jumpDisk->Draw(m_renderer);
-
-			m_renderer->SetDepthWrite(true);
-			m_renderer->SetBlendMode(BLEND_SOLID);
-			m_renderer->SetDepthTest(true);
 		}
 	}
 }
@@ -1011,7 +1087,7 @@ void SectorView::DrawFarSectors(const matrix4x4f& modelview)
 			for (int sy = secOrigin.y-buildRadius; sy <= secOrigin.y+buildRadius; sy++) {
 				for (int sz = secOrigin.z-buildRadius; sz <= secOrigin.z+buildRadius; sz++) {
 						if ((vector3f(sx,sy,sz) - secOrigin).Length() <= buildRadius){
-							BuildFarSector(Sector::cache.GetCached(SystemPath(sx, sy, sz)), Sector::SIZE * secOrigin, m_farstars, m_farstarsColor);
+							BuildFarSector(GetCached(SystemPath(sx, sy, sz)), Sector::SIZE * secOrigin, m_farstars, m_farstarsColor);
 						}
 					}
 				}
@@ -1023,14 +1099,16 @@ void SectorView::DrawFarSectors(const matrix4x4f& modelview)
 	}
 
 	// always draw the stars, slightly altering their size for different different resolutions, so they still look okay
-	if (m_farstars.size() > 0)
-		m_renderer->DrawPoints(m_farstars.size(), &m_farstars[0], &m_farstarsColor[0], 1.f + (Graphics::GetScreenHeight() / 720.f));
+	if (m_farstars.size() > 0) {
+		m_renderer->DrawPoints(m_farstars.size(), &m_farstars[0], &m_farstarsColor[0],
+			m_alphaBlendState, 1.f + (Graphics::GetScreenHeight() / 720.f));
+	}
 
 	// also add labels for any faction homeworlds among the systems we've drawn
 	PutFactionLabels(Sector::SIZE * secOrigin);
 }
 
-void SectorView::BuildFarSector(Sector* sec, const vector3f &origin, std::vector<vector3f> &points, std::vector<Color> &colors)
+void SectorView::BuildFarSector(RefCountedPtr<Sector> sec, const vector3f &origin, std::vector<vector3f> &points, std::vector<Color> &colors)
 {
 	PROFILE_SCOPED()
 	Color starColor;
@@ -1060,6 +1138,8 @@ void SectorView::OnSwitchTo()
 	if (!m_onKeyPressConnection.connected())
 		m_onKeyPressConnection =
 			Pi::onKeyPress.connect(sigc::mem_fun(this, &SectorView::OnKeyPressed));
+
+	UIView::OnSwitchTo();
 
 	Update();
 
@@ -1117,13 +1197,9 @@ void SectorView::OnKeyPressed(SDL_Keysym *keysym)
 		return;
 	}
 
-	// toggle selection mode
 	if (KeyBindings::mapToggleSelectionFollowView.Matches(keysym)) {
-		m_selectionFollowsMovement = !m_selectionFollowsMovement;
-		if (m_selectionFollowsMovement)
-			Pi::cpan->MsgLog()->Message("", Lang::ENABLED_AUTOMATIC_SYSTEM_SELECTION);
-		else
-			Pi::cpan->MsgLog()->Message("", Lang::DISABLED_AUTOMATIC_SYSTEM_SELECTION);
+		m_automaticSystemSelection = !m_automaticSystemSelection;
+        m_automaticSystemSelectionButton->SetPressed(m_automaticSystemSelection);
 		return;
 	}
 
@@ -1222,8 +1298,6 @@ void SectorView::Update()
 		if (travelPos.Length() > diffPos.Length()) m_pos = m_posMovingTo;
 		else m_pos = m_pos + travelPos;
 
-		Sector::cache.SetPosition(m_pos);
-
 		float diffX = m_rotXMovingTo - m_rotX;
 		float travelX = diffX * 10.0f*frameTime;
 		if (fabs(travelX) > fabs(diffX)) m_rotX = m_rotXMovingTo;
@@ -1252,10 +1326,10 @@ void SectorView::Update()
 		}
 	}
 
-	if (m_selectionFollowsMovement) {
+	if (m_automaticSystemSelection) {
 		SystemPath new_selected = SystemPath(int(floor(m_pos.x)), int(floor(m_pos.y)), int(floor(m_pos.z)), 0);
 
-		Sector* ps = Sector::cache.GetCached(new_selected);
+		RefCountedPtr<Sector> ps = GetCached(new_selected);
 		if (ps->m_systems.size()) {
 			float px = FFRAC(m_pos.x)*Sector::SIZE;
 			float py = FFRAC(m_pos.y)*Sector::SIZE;
@@ -1274,23 +1348,34 @@ void SectorView::Update()
 				}
 			}
 
-			if (m_selected != new_selected)
-				SetSelectedSystem(new_selected);
+			if (!m_selected.IsSameSystem(new_selected)) {
+				RefCountedPtr<StarSystem> system = StarSystemCache::GetCached(new_selected);
+				SetSelected(system->GetStars()[0]->GetPath());
+			}
 		}
 	}
 
-	Sector::cache.ShrinkCache();
+	ShrinkCache();
 
 	m_playerHyperspaceRange = Pi::player->GetStats().hyperspace_range;
 
 	if(!m_jumpSphere)
 	{
+		Graphics::RenderStateDesc rsd;
+		rsd.blendMode = Graphics::BLEND_ALPHA;
+		rsd.depthTest = false;
+		rsd.depthWrite = false;
+		rsd.cullMode = Graphics::CULL_NONE;
+		m_jumpSphereState = m_renderer->CreateRenderState(rsd);
+
 		Graphics::MaterialDescriptor matdesc;
 		matdesc.effect = EFFECT_FRESNEL_SPHERE;
-		RefCountedPtr<Graphics::Material> fresnelMat(Pi::renderer->CreateMaterial(matdesc));
-		m_jumpSphere.reset( new Graphics::Drawables::Sphere3D(fresnelMat, 3, 1.0f) );
-		m_jumpDisk.reset( new Graphics::Drawables::Disk(fresnelMat, 72, 1.0f) );
+		RefCountedPtr<Graphics::Material> fresnelMat(m_renderer->CreateMaterial(matdesc));
+		m_jumpSphere.reset( new Graphics::Drawables::Sphere3D(m_renderer, fresnelMat, m_jumpSphereState, 3, 1.0f) );
+		m_jumpDisk.reset( new Graphics::Drawables::Disk(fresnelMat, m_jumpSphereState, 72, 1.0f) );
 	}
+
+	UIView::Update();
 }
 
 void SectorView::ShowAll()
@@ -1307,5 +1392,43 @@ void SectorView::MouseWheel(bool up)
 			m_zoomMovingTo += ZOOM_SPEED * WHEEL_SENSITIVITY * Pi::GetMoveSpeedShiftModifier();
 		else
 			m_zoomMovingTo -= ZOOM_SPEED * WHEEL_SENSITIVITY * Pi::GetMoveSpeedShiftModifier();
+	}
+}
+
+void SectorView::ShrinkCache()
+{
+	PROFILE_SCOPED()
+	// we're going to use these to determine if our sectors are within the range that we'll ever render
+	const int drawRadius = (m_zoomClamped <= FAR_THRESHOLD) ? DRAW_RAD : ceilf((m_zoomClamped/FAR_THRESHOLD) * DRAW_RAD);
+
+	const int xmin = int(floorf(m_pos.x))-drawRadius;
+	const int xmax = int(floorf(m_pos.x))+drawRadius;
+	const int ymin = int(floorf(m_pos.y))-drawRadius;
+	const int ymax = int(floorf(m_pos.y))+drawRadius;
+	const int zmin = int(floorf(m_pos.z))-drawRadius;
+	const int zmax = int(floorf(m_pos.z))+drawRadius;
+
+	// XXX don't clear the current/selected/target sectors
+
+	if  (xmin != m_cacheXMin || xmax != m_cacheXMax
+	  || ymin != m_cacheYMin || ymax != m_cacheYMax
+	  || zmin != m_cacheZMin || zmax != m_cacheZMax) {
+		auto iter = m_sectorCache->Begin();
+		while (iter != m_sectorCache->End())	{
+			RefCountedPtr<Sector> s = iter->second;
+			//check_point_in_box
+			if (!s->WithinBox( xmin, xmax, ymin, ymax, zmin, zmax )) {
+				m_sectorCache->Erase( iter++ );
+			} else {
+				iter++;
+			}
+		}
+
+		m_cacheXMin = xmin;
+		m_cacheXMax = xmax;
+		m_cacheYMin = ymin;
+		m_cacheYMax = ymax;
+		m_cacheZMin = zmin;
+		m_cacheZMax = zmax;
 	}
 }

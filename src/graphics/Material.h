@@ -31,9 +31,11 @@ enum EffectType {
 	EFFECT_GEOSPHERE_TERRAIN_WITH_LAVA,
 	EFFECT_GEOSPHERE_TERRAIN_WITH_WATER,
 	EFFECT_GEOSPHERE_SKY,
+	EFFECT_GASSPHERE_TERRAIN,
 	EFFECT_FRESNEL_SPHERE,
 	EFFECT_SHIELD,
-	EFFECT_SKYBOX
+	EFFECT_SKYBOX,
+	EFFECT_SPHEREIMPOSTOR
 };
 
 
@@ -54,7 +56,6 @@ public:
 	bool glowMap;
 	bool lighting;
 	bool specularMap;
-	bool twoSided;
 	bool usePatterns; //pattern/color system
 	bool vertexColors;
 	Sint32 textures; //texture count
@@ -86,9 +87,6 @@ public:
 
 	virtual void Apply() { }
 	virtual void Unapply() { }
-
-	//in practice disables backface culling
-	bool twoSided;
 
 	void *specialParameter0; //this can be whatever. Bit of a hack.
 

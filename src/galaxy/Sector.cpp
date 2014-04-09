@@ -8,6 +8,7 @@
 
 #include "Factions.h"
 #include "utils.h"
+#include "EnumStrings.h"
 
 static const unsigned int SYS_NAME_FRAGS = 32;
 static const char *sys_names[SYS_NAME_FRAGS] =
@@ -19,7 +20,7 @@ const float Sector::SIZE = 8.f;
 
 SectorCache Sector::cache;
 
-void Sector::GetCustomSystems()
+void Sector::GetCustomSystems(Random& rng)
 {
 	PROFILE_SCOPED()
 	const std::vector<CustomSystem*> &systems = CustomSystem::GetCustomSystemsForSector(sx, sy, sz);
@@ -37,6 +38,17 @@ void Sector::GetCustomSystems()
 		}
 		s.customSys = cs;
 		s.seed = cs->seed;
+		if (cs->want_rand_explored) {
+			/*
+			 * 0 - ~500ly from sol: explored
+			 * ~500ly - ~700ly (65-90 sectors): gradual
+			 * ~700ly+: unexplored
+			 */
+			int dist = isqrt(1 + sx*sx + sy*sy + sz*sz);
+			s.explored = ((dist <= 90) && ( dist <= 65 || rng.Int32(dist) <= 40)) || Faction::IsHomeSystem(SystemPath(sx, sy, sz, sysIdx));
+		} else {
+			s.explored = cs->explored;
+		}
 		m_systems.push_back(s);
 	}
 }
@@ -44,22 +56,20 @@ void Sector::GetCustomSystems()
 static const int CUSTOM_ONLY_RADIUS	= 4;
 
 //////////////////////// Sector
-Sector::Sector(int x, int y, int z)
+Sector::Sector(const SystemPath& path) : sx(path.sectorX), sy(path.sectorY), sz(path.sectorZ), m_factionsAssigned(false)
 {
 	PROFILE_SCOPED()
-	Uint32 _init[4] = { Uint32(x), Uint32(y), Uint32(z), UNIVERSE_SEED };
+	Uint32 _init[4] = { Uint32(path.sectorX), Uint32(path.sectorY), Uint32(path.sectorZ), UNIVERSE_SEED };
 	Random rng(_init, 4);
 
-	sx = x; sy = y; sz = z;
-
-	GetCustomSystems();
+	GetCustomSystems(rng);
 	int customCount = m_systems.size();
 
 	/* Always place random systems outside the core custom-only region */
-	if ((x < -CUSTOM_ONLY_RADIUS) || (x > CUSTOM_ONLY_RADIUS-1) ||
-	    (y < -CUSTOM_ONLY_RADIUS) || (y > CUSTOM_ONLY_RADIUS-1) ||
-	    (z < -CUSTOM_ONLY_RADIUS) || (z > CUSTOM_ONLY_RADIUS-1)) {
-		int numSystems = (rng.Int32(4,20) * Galaxy::GetSectorDensity(x, y, z)) >> 8;
+	if ((path.sectorX < -CUSTOM_ONLY_RADIUS) || (path.sectorX > CUSTOM_ONLY_RADIUS-1) ||
+	    (path.sectorY < -CUSTOM_ONLY_RADIUS) || (path.sectorY > CUSTOM_ONLY_RADIUS-1) ||
+	    (path.sectorZ < -CUSTOM_ONLY_RADIUS) || (path.sectorZ > CUSTOM_ONLY_RADIUS-1)) {
+		int numSystems = (rng.Int32(4,20) * Galaxy::GetSectorDensity(path.sectorX, path.sectorY, path.sectorZ)) >> 8;
 
 		for (int i=0; i<numSystems; i++) {
 			System s(sx, sy, sz, customCount + i);
@@ -81,6 +91,14 @@ Sector::Sector(int x, int y, int z)
 
 			s.seed = 0;
 			s.customSys = 0;
+
+			/*
+			 * 0 - ~500ly from sol: explored
+			 * ~500ly - ~700ly (65-90 sectors): gradual
+			 * ~700ly+: unexplored
+			 */
+			int dist = isqrt(1 + sx*sx + sy*sy + sz*sz);
+			s.explored = ((dist <= 90) && ( dist <= 65 || rng.Int32(dist) <= 40)) || Faction::IsHomeSystem(SystemPath(sx, sy, sz, customCount + i));
 
 			Uint32 weight = rng.Int32(1000000);
 
@@ -179,7 +197,7 @@ Sector::Sector(int x, int y, int z)
 					s.starType[0] = SystemBody::TYPE_BROWN_DWARF;
 				}
 			}
-			//printf("%d: %d%\n", sx, sy);
+			//Output("%d: %d%\n", sx, sy);
 
 			if (s.numStars > 1) {
 				s.starType[1] = SystemBody::BodyType(rng.Int32(SystemBody::TYPE_STAR_MIN, s.starType[0]));
@@ -223,18 +241,23 @@ Sector::Sector(int x, int y, int z)
 				} else if (isqrt(1+sx*sx+sy*sy) > 5) s.starType[0] = SystemBody::TYPE_STAR_M_GIANT;
 				else s.starType[0] = SystemBody::TYPE_STAR_M;
 
-				//printf("%d: %d%\n", sx, sy);
+				//Output("%d: %d%\n", sx, sy);
 			}
 
 			s.name = GenName(s, customCount + i,  rng);
-			//printf("%s: \n", s.name.c_str());
+			//Output("%s: \n", s.name.c_str());
 
 			m_systems.push_back(s);
 		}
 	}
 }
 
-float Sector::DistanceBetween(const Sector *a, int sysIdxA, const Sector *b, int sysIdxB)
+Sector::~Sector()
+{
+	cache.RemoveFromAttic(SystemPath(sx, sy, sz));
+}
+
+float Sector::DistanceBetween(RefCountedPtr<const Sector> a, int sysIdxA, RefCountedPtr<const Sector> b, int sysIdxB)
 {
 	PROFILE_SCOPED()
 	vector3f dv = a->m_systems[sysIdxA].p - b->m_systems[sysIdxB].p;
@@ -319,10 +342,14 @@ bool Sector::WithinBox(const int Xmin, const int Xmax, const int Ymin, const int
 void Sector::AssignFactions()
 {
 	PROFILE_SCOPED()
+
+	assert(!m_factionsAssigned);
+
 	Uint32 index = 0;
 	for (std::vector<Sector::System>::iterator system = m_systems.begin(); system != m_systems.end(); ++system, ++index ) {
-		(*system).faction = Faction::GetNearestFaction(*this, index);
+		(*system).faction = Faction::GetNearestFaction(RefCountedPtr<const Sector>(this), index);
 	}
+	m_factionsAssigned = true;
 }
 
 /*	answer whether the system path is in this sector
@@ -334,4 +361,38 @@ bool Sector::Contains(const SystemPath sysPath) const
 	if (sy != sysPath.sectorY) return false;
 	if (sz != sysPath.sectorZ) return false;
 	return true;
+}
+
+void Sector::Dump(FILE* file, const char* indent) const
+{
+	fprintf(file, "Sector(%d,%d,%d) {\n", sx, sy, sz);
+	fprintf(file, "\t%zu systems\n", m_systems.size());
+	for (const Sector::System& sys : m_systems) {
+		assert(sx == sys.sx && sy == sys.sy && sz == sys.sz);
+		assert(sys.idx >= 0);
+		fprintf(file, "\tSystem(%d,%d,%d,%u) {\n", sys.sx, sys.sy, sys.sz, sys.idx);
+		fprintf(file, "\t\t\"%s\"\n", sys.name.c_str());
+		fprintf(file, "\t\t%sEXPLORED%s\n", sys.explored ? "" : "UN", sys.customSys != nullptr ? ", CUSTOM" : "");
+		fprintf(file, "\t\tfaction %s%s%s\n", sys.faction ? "\"" : "NONE", sys.faction ? sys.faction->name.c_str() : "", sys.faction ? "\"" : "");
+		fprintf(file, "\t\tpos (%f, %f, %f)\n", double(sys.p.x), double(sys.p.y), double(sys.p.z));
+		fprintf(file, "\t\tseed %u\n", sys.seed);
+		fprintf(file, "\t\tpopulation %'.0f\n", sys.population.ToDouble() * 1e9);
+		fprintf(file, "\t\t%d stars%s\n", sys.numStars, sys.numStars > 0 ? " {" : "");
+		for (int i = 0; i < sys.numStars; ++i)
+			fprintf(file, "\t\t\t%s\n", EnumStrings::GetString("BodyType", sys.starType[i]));
+		if (sys.numStars > 0) fprintf(file, "\t\t}\n");
+		RefCountedPtr<StarSystem> ssys = StarSystemCache::GetCached(SystemPath(sys.sx, sys.sy, sys.sz, sys.idx));
+		assert(ssys->GetPath().IsSameSystem(SystemPath(sys.sx, sys.sy, sys.sz, sys.idx)));
+		assert(ssys->GetNumStars() == sys.numStars);
+		assert(ssys->GetName() == sys.name);
+		assert(ssys->GetUnexplored() == !sys.explored);
+		assert(ssys->GetFaction() == sys.faction);
+		assert(unsigned(ssys->GetSeed()) == sys.seed);
+		assert(ssys->GetNumStars() == sys.numStars);
+		for (int i = 0; i < sys.numStars; ++i)
+			assert(sys.starType[i] == ssys->GetStars()[i]->GetType());
+		ssys->Dump(file, "\t\t", true);
+		fprintf(file, "\t}\n");
+	}
+	fprintf(file, "}\n\n");
 }
