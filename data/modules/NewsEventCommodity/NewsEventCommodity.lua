@@ -299,6 +299,9 @@ end
 local onCreateBB = function (station)
 
 	-- create ads
+	for i = 1,40 do
+		createNewsEvent(1)
+	end
 	checkAdvertsAdd(station)
 end
 
