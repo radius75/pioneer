@@ -981,9 +981,9 @@ double Ship::GetHullTemperature() const
 {
 	double dragGs = GetAtmosForce().Length() / (GetMass() * 9.81);
 	if (m_equipment.Get(Equip::SLOT_ATMOSHIELD) == Equip::NONE) {
-		return dragGs / 5.0;
+		return dragGs / (5.0 - (5.0 * 0.2 * GetWheelState()));
 	} else {
-		return dragGs / 300.0;
+		return dragGs / (300.0 - (300.0 * 0.2 * GetWheelState()));
 	}
 }
 
@@ -1105,7 +1105,11 @@ void Ship::StaticUpdate(const float timeStep)
 
 	if (m_controller) m_controller->StaticUpdate(timeStep);
 
-	if (GetHullTemperature() > 1.0)
+	if (GetHullTemperature() > 0.05) // Hull damage if temperature >5%
+		// the growing Hull damage with the increasing temperature (Quadratic function)
+		SetPercentHull(GetPercentHull() - (GetHullTemperature() * GetHullTemperature() * 0.01));
+
+	if (GetPercentHull() == 0)
 		Explode();
 
 	UpdateAlertState();
