@@ -1,4 +1,4 @@
-// Copyright © 2008-2013 Pioneer Developers. See AUTHORS.txt for details
+// Copyright © 2008-2014 Pioneer Developers. See AUTHORS.txt for details
 // Licensed under the terms of the GPL v3. See licenses/GPL-3.txt
 
 #include "ShieldMaterial.h"
@@ -13,10 +13,8 @@
 namespace Graphics {
 namespace GL2 {
 
-ShieldProgram::ShieldProgram(const MaterialDescriptor &desc, int lights)
+ShieldProgram::ShieldProgram(const MaterialDescriptor &desc)
 {
-	lights = Clamp(lights, 1, 4);
-
 	//build some defines
 	std::stringstream ss;
 
@@ -75,16 +73,6 @@ void ShieldMaterial::Apply()
 		p->shieldCooldown.Set(0.0f);
 		p->numHits.Set( 0 );
 	}
-
-	glPushAttrib(GL_ENABLE_BIT);
-	if (this->twoSided)
-		glDisable(GL_CULL_FACE);
-}
-
-void ShieldMaterial::Unapply()
-{
-	glPopAttrib();
-	m_program->Unuse();
 }
 
 }

@@ -8,7 +8,7 @@ local ShipDef = import("ShipDef")
 local Lang = import("Lang")
 local Event = import("Event")
 
-local TabGroup = import("ui/TabGroup")
+local TabView = import("ui/TabView")
 local InfoGauge = import("ui/InfoGauge")
 
 local l = Lang.GetResource("ui-core")
@@ -30,7 +30,7 @@ ui.templates.StationView = function (args)
 		return tabGroup.widget
 	end
 
-	tabGroup = TabGroup.New()
+	tabGroup = TabView.New()
 
 	local player = Game.player
 
@@ -110,13 +110,13 @@ ui.templates.StationView = function (args)
 			)
 		)
 
-	tabGroup:AddTab({ id = "lobby",           title = l.LOBBY,            icon = "Info",      template = lobby           })
-	tabGroup:AddTab({ id = "bulletinBoard",   title = l.BULLETIN_BOARD,   icon = "Clipboard", template = bulletinBoard   })
-	tabGroup:AddTab({ id = "commodityMarket", title = l.COMMODITY_MARKET, icon = "Cart",      template = commodityMarket })
-	tabGroup:AddTab({ id = "shipMarket",      title = l.SHIP_MARKET,      icon = "Car",       template = shipMarket      })
-	tabGroup:AddTab({ id = "equipmentMarket", title = l.EQUIPMENT_MARKET, icon = "Radio",     template = equipmentMarket })
-	tabGroup:AddTab({ id = "shipRepairs",     title = l.SHIP_REPAIRS,     icon = "Tools",     template = shipRepairs     })
-	tabGroup:AddTab({ id = "police",          title = l.POLICE,           icon = "Shield",    template = police          })
+	tabGroup:AddTab({ id = "lobby",           title = l.LOBBY,            icon = "Info",       template = lobby           })
+	tabGroup:AddTab({ id = "bulletinBoard",   title = l.BULLETIN_BOARD,   icon = "Clipboard",  template = bulletinBoard   })
+	tabGroup:AddTab({ id = "commodityMarket", title = l.COMMODITY_MARKET, icon = "Cart",       template = commodityMarket })
+	tabGroup:AddTab({ id = "shipMarket",      title = l.SHIP_MARKET,      icon = "Rocketship", template = shipMarket      })
+	tabGroup:AddTab({ id = "equipmentMarket", title = l.EQUIPMENT_MARKET, icon = "Radio",      template = equipmentMarket })
+	tabGroup:AddTab({ id = "shipRepairs",     title = l.SHIP_REPAIRS,     icon = "Tools",      template = shipRepairs     })
+	tabGroup:AddTab({ id = "police",          title = l.POLICE,           icon = "Shield",     template = police          })
 
 	tabGroup:SetFooter(footer)
 

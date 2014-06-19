@@ -27,7 +27,8 @@ local function updateEquipmentStock (station)
 
 	for e,def in pairs(EquipDef) do
 		if def.slot == "CARGO" then
-			equipmentStock[station][e] = Engine.rand:Integer(0,100) * Engine.rand:Integer(1,100)
+			local min = def.id == "HYDROGEN" and 1 or 0 -- always stock hydrogen
+			equipmentStock[station][e] = Engine.rand:Integer(min,100) * Engine.rand:Integer(1,100)
         else
 			equipmentStock[station][e] = Engine.rand:Integer(0,100)
 		end
@@ -113,7 +114,7 @@ end
 --
 --   equip - the <Constants.EquipType> string for the equipment or cargo item
 --
---   amount - the amount of the item to add (or substract) from the station stock
+--   amount - the amount of the item to add (or subtract) from the station stock
 --
 -- Availability:
 --
@@ -225,7 +226,7 @@ local function updateShipsOnSale (station)
 			local pattern = model.numPatterns ~= 0 and Engine.rand:Integer(1,model.numPatterns) or nil
 			addShipOnSale(station, {
 				def     = def,
-				skin    = ModelSkin.New():SetRandomColors(Engine.rand),
+				skin    = ModelSkin.New():SetRandomColors(Engine.rand):SetDecal(def.manufacturer),
 				pattern = pattern,
 				label   = Ship.MakeRandomLabel(),
 			})
@@ -257,6 +258,7 @@ SpaceStation.adverts = {}
 -- >     icon        = icon,
 -- >     onChat      = onChat,
 -- >     onDelete    = onDelete,
+-- >     isEnabled   = isEnabled,
 -- > })
 -- >
 -- > -- Legacy form
@@ -283,6 +285,10 @@ SpaceStation.adverts = {}
 --              <ChatForm.RemoveAdvertOnClose> is called, and when the
 --              <SpaceStation> itself is destroyed (eg the player leaves the
 --              system).
+--
+--   isEnabled - optional. function to call to determine whether the advert is
+--               enabled. Disabled adverts are shown in darker tone than enabled
+--               ones. When not given, all adverts are considered enabled.
 --
 -- Return:
 --
@@ -328,6 +334,7 @@ function SpaceStation:AddAdvert (description, onChat, onDelete)
 		icon        = args.icon,
 		onChat      = args.onChat,
 		onDelete    = args.onDelete,
+		isEnabled   = args.isEnabled,
 	}
 	Event.Queue("onAdvertAdded", self, nextRef)
 	return nextRef

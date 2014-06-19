@@ -2,6 +2,8 @@
 // Licensed under the terms of the GPL v3. See licenses/GPL-3.txt
 
 #include "HudTrail.h"
+#include "Pi.h"
+#include "graphics/RenderState.h"
 
 const float UPDATE_INTERVAL = 0.1f;
 const Uint16 MAX_POINTS = 100;
@@ -12,6 +14,11 @@ HudTrail::HudTrail(Body *b, const Color& c)
 , m_color(c)
 {
 	m_currentFrame = b->GetFrame();
+
+	Graphics::RenderStateDesc rsd;
+	rsd.blendMode = Graphics::BLEND_ALPHA_ONE;
+	rsd.depthWrite = false;
+	m_renderState = Pi::renderer->CreateRenderState(rsd);
 }
 
 void HudTrail::Update(float time)
@@ -21,6 +28,12 @@ void HudTrail::Update(float time)
 	if (m_updateTime > UPDATE_INTERVAL) {
 		m_updateTime = 0.f;
 		const Frame *bodyFrame = m_body->GetFrame();
+		
+		if( !m_currentFrame ) {
+			m_currentFrame = bodyFrame;
+			m_trailPoints.clear();
+		}
+		
 		if( bodyFrame==m_currentFrame )
 			m_trailPoints.push_back(m_body->GetInterpPosition());
 	}
@@ -57,14 +70,11 @@ void HudTrail::Render(Graphics::Renderer *r)
 		}
 
 		r->SetTransform(m_transform);
-		r->SetBlendMode(Graphics::BLEND_ALPHA_ONE);
-		r->SetDepthWrite(false);
-		r->SetDepthTest(true);
-		r->DrawLines(tvts.size(), &tvts[0], &colors[0], Graphics::LINE_STRIP);
+		r->DrawLines(tvts.size(), &tvts[0], &colors[0], m_renderState, Graphics::LINE_STRIP);
 	}
 }
 
-void HudTrail::Reset(Frame *newFrame)
+void HudTrail::Reset(const Frame *newFrame)
 {
 	m_currentFrame = newFrame;
 	m_trailPoints.clear();

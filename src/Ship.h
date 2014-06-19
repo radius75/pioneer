@@ -9,7 +9,6 @@
 #include "DynamicBody.h"
 #include "EquipSet.h"
 #include "galaxy/SystemPath.h"
-#include "HudTrail.h"
 #include "NavLights.h"
 #include "Planet.h"
 #include "Sensors.h"
@@ -121,6 +120,7 @@ public:
 		DOCKING,    // in docking animation
 		DOCKED,     // docked with station
 		LANDED,     // rough landed (not docked)
+		JUMPING,    // between space and hyperspace ;)
 		HYPERSPACE, // in hyperspace
 	};
 
@@ -140,6 +140,7 @@ public:
 		HYPERJUMP_OK,
 		HYPERJUMP_CURRENT_SYSTEM,
 		HYPERJUMP_NO_DRIVE,
+		HYPERJUMP_INITIATED,
 		HYPERJUMP_DRIVE_ACTIVE,
 		HYPERJUMP_OUT_OF_RANGE,
 		HYPERJUMP_INSUFFICIENT_FUEL,
@@ -160,6 +161,9 @@ public:
 	}
 	bool CanHyperspaceTo(const SystemPath &dest) { return (CheckHyperspaceTo(dest) == HYPERJUMP_OK); }
 
+	Ship::HyperjumpStatus CheckHyperjumpCapability() const;
+	virtual Ship::HyperjumpStatus InitiateHyperjumpTo(const SystemPath &dest, int warmup_time, double duration, LuaRef checks);
+	virtual void AbortHyperjump();
 	virtual Ship::HyperjumpStatus StartHyperspaceCountdown(const SystemPath &dest);
 	float GetHyperspaceCountdown() const { return m_hyperspace.countdown; }
 	bool IsHyperspaceActive() const { return (m_hyperspace.countdown > 0.0); }
@@ -188,9 +192,9 @@ public:
 	double AITravelTime(const vector3d &reldir, double targdist, const vector3d &relvel, double endspeed, double maxdecel);
 
 	// old stuff, deprecated
-	void AIAccelToModelRelativeVelocity(const vector3d v);
-	void AIModelCoordsMatchAngVel(vector3d desiredAngVel, double softness);
-	void AIModelCoordsMatchSpeedRelTo(const vector3d v, const Ship *);
+	void AIAccelToModelRelativeVelocity(const vector3d &v);
+	void AIModelCoordsMatchAngVel(const vector3d &desiredAngVel, double softness);
+	void AIModelCoordsMatchSpeedRelTo(const vector3d &v, const Ship *);
 
 	void AIClearInstructions();
 	bool AIIsActive() { return m_curAICmd ? true : false; }
@@ -266,6 +270,8 @@ public:
 	Uint8 GetRelations(Body *other) const; //0=hostile, 50=neutral, 100=ally
 	void SetRelations(Body *other, Uint8 percent);
 
+	double GetLandingPosOffset() const { return m_landingMinOffset; }
+
 protected:
 	virtual void Save(Serializer::Writer &wr, Space *space);
 	virtual void Load(Serializer::Reader &rd, Space *space);
@@ -334,7 +340,9 @@ private:
 		// > 0 means active
 		float countdown;
 		bool now;
+		bool ignoreFuel; // XXX: To remove once the fuel handling is out of the core
 		double duration;
+		LuaRef checks; // A Lua function to check all the conditions before the jump
 	} m_hyperspace;
 	HyperspaceCloud *m_hyperspaceCloud;
 
@@ -344,6 +352,8 @@ private:
 
 	double m_thrusterFuel; 	// remaining fuel 0.0-1.0
 	double m_reserveFuel;	// 0-1, fuel not to touch for the current AI program
+
+	double m_landingMinOffset;	// offset from the centre of the ship used during docking
 
 	int m_dockedWithIndex; // deserialisation
 

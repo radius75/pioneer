@@ -237,14 +237,14 @@ void KeyAction::SetFromString(const char *str)
 {
 	const size_t BUF_SIZE = 64;
 	const size_t len = strlen(str);
-	char buf[BUF_SIZE];
 	if (len >= BUF_SIZE) {
-		fprintf(stderr, "invalid KeyAction string\n");
+		Output("invalid KeyAction string\n");
 		binding1 = KeyBinding::FromString(str);
 		binding2.Clear();
 	} else {
 		const char *sep = strchr(str, ',');
 		if (sep) {
+			char buf[BUF_SIZE];
 			const size_t len1 = sep - str;
 			const size_t len2 = len - len1 - 1;
 			memcpy(buf, str, len1);
@@ -299,7 +299,7 @@ void KeyAction::CheckSDLEventAndDispatch(const SDL_Event *event) {
 		case SDL_JOYBUTTONDOWN:
 		case SDL_JOYBUTTONUP:
 		{
-			if (binding1.Matches(&event->jbutton) || binding1.Matches(&event->jbutton)) {
+			if (binding1.Matches(&event->jbutton) || binding2.Matches(&event->jbutton)) {
 				if (event->jbutton.state == SDL_PRESSED)
 					onPress.emit();
 				else if (event->jbutton.state == SDL_RELEASED)
@@ -444,7 +444,7 @@ void InitAxisBinding(AxisBinding &ab, const std::string &bindName, const std::st
 
 	// set the binding from the configured or default value
 	if (!AxisBinding::FromString(axisName.c_str(), ab)) {
-		fprintf(stderr, "invalid axis binding '%s' in config file for %s\n", axisName.c_str(), bindName.c_str());
+		Output("invalid axis binding '%s' in config file for %s\n", axisName.c_str(), bindName.c_str());
 		ab.Clear();
 	}
 }

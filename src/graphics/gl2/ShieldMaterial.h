@@ -1,4 +1,4 @@
-// Copyright © 2008-2013 Pioneer Developers. See AUTHORS.txt for details
+// Copyright © 2008-2014 Pioneer Developers. See AUTHORS.txt for details
 // Licensed under the terms of the GPL v3. See licenses/GPL-3.txt
 
 #ifndef _GL2_SHIELDMATERIAL_H
@@ -18,7 +18,7 @@ namespace Graphics {
 
 		class ShieldProgram : public Program {
 		public:
-			ShieldProgram(const MaterialDescriptor &, int lights=0);
+			ShieldProgram(const MaterialDescriptor &);
 			Uniform shieldStrength;
 			Uniform shieldCooldown;
 			Uniform hitPos[MAX_SHIELD_HITS];
@@ -32,7 +32,6 @@ namespace Graphics {
 		public:
 			virtual Program *CreateProgram(const MaterialDescriptor &);
 			virtual void Apply();
-			virtual void Unapply();
 		};
 	}
 }

@@ -203,6 +203,8 @@ protected:
 	SSplitResultData mData;
 };
 
+class GeoPatch;
+
 // ********************************************************************************
 // Overloaded PureJob class to handle generating the mesh for each patch
 // ********************************************************************************
@@ -210,11 +212,9 @@ class BasePatchJob : public Job
 {
 public:
 	BasePatchJob() {}
-	virtual ~BasePatchJob() {}
-
 	virtual void OnRun() {}    // RUNS IN ANOTHER THREAD!! MUST BE THREAD SAFE!
-	virtual void OnFinish() {}  // runs in primary thread of the context
-	virtual void OnCancel() {}   // runs in primary thread of the context
+	virtual void OnFinish() {}
+	virtual void OnCancel() {}
 
 protected:
 	// in patch surface coords, [0,1]
@@ -234,11 +234,11 @@ protected:
 class SinglePatchJob : public BasePatchJob
 {
 public:
-	SinglePatchJob(SSingleSplitRequest *data) : BasePatchJob(), mData(data), mpResults(NULL)	{ /* empty */ }
+	SinglePatchJob(SSingleSplitRequest *data) : mData(data), mpResults(NULL) { /* empty */ }
+	~SinglePatchJob();
 
 	virtual void OnRun();      // RUNS IN ANOTHER THREAD!! MUST BE THREAD SAFE!
 	virtual void OnFinish();   // runs in primary thread of the context
-	virtual void OnCancel();   // runs in primary thread of the context
 
 private:
 	std::unique_ptr<SSingleSplitRequest> mData;
@@ -251,11 +251,11 @@ private:
 class QuadPatchJob : public BasePatchJob
 {
 public:
-	QuadPatchJob(SQuadSplitRequest *data) : BasePatchJob(), mData(data), mpResults(NULL) { /* empty */ }
+	QuadPatchJob(SQuadSplitRequest *data) : mData(data), mpResults(NULL) { /* empty */ }
+	~QuadPatchJob();
 
 	virtual void OnRun();      // RUNS IN ANOTHER THREAD!! MUST BE THREAD SAFE!
 	virtual void OnFinish();   // runs in primary thread of the context
-	virtual void OnCancel();   // runs in primary thread of the context
 
 private:
 	std::unique_ptr<SQuadSplitRequest> mData;

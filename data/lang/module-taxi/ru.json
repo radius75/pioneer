@@ -1,7 +1,7 @@
 {
    "CORPORATIONS_0" : {
       "description" : "",
-      "message" : "Sirius"
+      "message" : "Сириус"
    },
    "CORPORATIONS_1" : {
       "description" : "",
@@ -21,7 +21,7 @@
    },
    "CORPORATIONS_3" : {
       "description" : "",
-      "message" : "Taranis"
+      "message" : "Таранис"
    },
    "CORPORATIONS_4" : {
       "description" : "",
@@ -45,7 +45,7 @@
    },
    "CORPORATIONS_9" : {
       "description" : "",
-      "message" : "Digital"
+      "message" : "Цифровой"
    },
    "COULD_YOU_REPEAT_THE_ORIGINAL_REQUEST" : {
       "description" : "",
@@ -58,6 +58,38 @@
    "DEADLINE" : {
       "description" : "",
       "message" : "Крайний срок:"
+   },
+   "DENY_0" : {
+      "description" : "",
+      "message" : "Сожалею, но я не могу доверить вам свою безопасность."
+   },
+   "DENY_1" : {
+      "description" : "",
+      "message" : "Возвращайтесь, когда у вас будет больше опыта."
+   },
+   "DENY_2" : {
+      "description" : "",
+      "message" : "Я не думаю, что вы тот пилот, которого я ищу."
+   },
+   "DENY_3" : {
+      "description" : "",
+      "message" : "Вы не похожи на человека, способного безопасно перевезти людей."
+   },
+   "DENY_4" : {
+      "description" : "",
+      "message" : "Вы не из тех пилотов, которых я ищу."
+   },
+   "DENY_5" : {
+      "description" : "",
+      "message" : "Вы кажетесь неопытным, чтобы справиться с перевозкой такой важности."
+   },
+   "DENY_6" : {
+      "description" : "",
+      "message" : "Я никогда не слышал о вас. Мне нужен более опытный человек для этого путешествия.."
+   },
+   "DENY_7" : {
+      "description" : "",
+      "message" : "Я не готов рисковать своей жизнью с человеком столь же неопытным, как вы."
    },
    "DISTANCE" : {
       "description" : "",

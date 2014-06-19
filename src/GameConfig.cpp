@@ -5,7 +5,7 @@
 #include "KeyBindings.h"
 #include "FileSystem.h"
 
-GameConfig::GameConfig()
+GameConfig::GameConfig(const std::map<std::string,std::string> &override_)
 {
 	// set defaults
 	std::map<std::string, std::string> &map = m_map[""];
@@ -35,7 +35,7 @@ GameConfig::GameConfig()
 	map["JoystickDeadzone"] = "0.1";
 	map["DefaultLowThrustPower"] = "0.25";
 	map["VSync"] = "0";
-	map["UseTextureCompression"] = "0";
+	map["UseTextureCompression"] = "1";
 	map["WorkerThreads"] = "0";
 	map["SpeedLines"] = "0";
 	map["EnableCockpit"] = "0";
@@ -49,6 +49,12 @@ GameConfig::GameConfig()
 	map["EnableGLDebug"] = "0";
 
 	Load();
+
+	for (auto i = override_.begin(); i != override_.end(); ++i) {
+		const std::string &key = (*i).first;
+		const std::string &val = (*i).second;
+		map[key] = val;
+	}
 }
 
 void GameConfig::Load()

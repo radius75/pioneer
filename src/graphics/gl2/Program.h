@@ -37,6 +37,7 @@ namespace Graphics {
 			Uniform texture2;
 			Uniform texture3;
 			Uniform texture4;
+			Uniform texture5;
 			Uniform heatGradient;
 			Uniform heatingMatrix;
 			Uniform heatingNormal;
@@ -45,6 +46,8 @@ namespace Graphics {
 			Uniform sceneAmbient;
 
 		protected:
+			static GLuint s_curProgram;
+
 			void LoadShaders(const std::string&, const std::string &defines);
 			virtual void InitUniforms();
 			std::string m_name;
